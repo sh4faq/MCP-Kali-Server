@@ -1,0 +1,13 @@
+# Core web framework
+Flask==2.3.3
+
+# HTTP requests
+requests==2.31.0
+
+# Testing framework
+pytest==7.4.2
+pytest-timeout==2.1.0
+
+# Type hints (built-in modules don't need installation but typing is used)
+# os, sys, time, subprocess, logging, argparse, signal, json, base64, hashlib
+# uuid, threading, queue, pty, select, traceback are all built-in modules
