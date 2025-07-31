@@ -5,7 +5,7 @@ import os
 import base64
 import traceback
 from flask import Flask, request, jsonify
-from core.config import logger, active_sessions, active_ssh_sessions
+from core.config import logger, active_sessions, active_ssh_sessions, VERSION
 from core.ssh_manager import SSHSessionManager
 from core.reverse_shell_manager import ReverseShellManager, execute_command
 from tools.kali_tools import (
@@ -24,7 +24,8 @@ def setup_routes(app: Flask):
         """Health check endpoint."""
         return jsonify({
             "status": "healthy",
-            "message": "Kali Linux Tools API Server is running"
+            "message": "Kali Linux Tools API Server is running",
+            "version": VERSION
         })
 
     # Command execution

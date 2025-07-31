@@ -8,25 +8,47 @@ This project provides a powerful MCP server that enables secure, programmatic ac
 
 ## 🏗️ Architecture
 
-The project is organized into two main components:
+This project is designed to work across different environments:
 
 ### 1. Kali Server (`kali-server/`)
-The core server application that runs on Kali Linux and provides the actual penetration testing capabilities.
+**Runs on Kali Linux only** - The core server application that provides the actual penetration testing capabilities.
 
 ```
 kali-server/
 ├── api/           # REST API routes and endpoints
-├── core/          # Core functionality (SSH, reverse shells, config)
+├── core/          # Core functionality (SSH, reverse shells, config, Docker)
 ├── tools/         # Penetration testing tools integration
 └── utils/         # Utility functions and file operations
 ```
 
+**Features:**
+- Docker test mode (`--test` option) - automatically manages test containers
+- All penetration testing tools (nmap, gobuster, etc.)
+- SSH and reverse shell session management
+- File operations with integrity verification
+
 ### 2. MCP Server (`mcp-server/`)
-The Model Context Protocol server that provides a standardized interface for MCP clients.
+**Can run on any system** - The Model Context Protocol server that provides a standardized interface for MCP clients.
 
 ```
 mcp-server/
 └── mcp_server.py  # MCP protocol implementation
+```
+
+**Note:** The MCP server communicates with the Kali server via HTTP, so they can be on different systems.
+
+### Deployment Architecture
+
+```
+┌─────────────────┐    HTTP     ┌──────────────────┐    HTTP     ┌──────────────────┐
+│   MCP Client    │ ◄─────────► │   MCP Server     │ ◄─────────► │   Kali Server    │
+│  (Any system)   │             │  (Any system)    │             │  (Kali Linux)    │
+└─────────────────┘             └──────────────────┘             │                  │
+                                                                  │ ┌──────────────┐ │
+                                                                  │ │   Docker     │ │
+                                                                  │ │ (test mode)  │ │
+                                                                  │ └──────────────┘ │
+                                                                  └──────────────────┘
 ```
 
 ## ✨ Key Features
@@ -91,10 +113,10 @@ mcp-server/
 ## 🛠️ Installation
 
 ### Prerequisites
-- Kali Linux (recommended) or any Linux distribution
+- Kali Linux (required for the Kali server)
 - Python 3.8+
-- Docker and Docker Compose (for testing)
-- Required system tools (nmap, gobuster, etc.)
+- Docker (for test mode on Kali Linux)
+- Required penetration testing tools (nmap, gobuster, etc.)
 
 ### Quick Start
 
@@ -109,29 +131,90 @@ mcp-server/
    pip install -r requirements.txt
    ```
 
-3. **Set up Docker for testing** (required)
+3. **Set up Docker for testing** (on Kali Linux only)
    ```bash
-   # Install Docker if not already installed
-   sudo apt update && sudo apt install docker.io docker-compose
+   # Run these commands on your Kali Linux system
+   sudo apt update && sudo apt install docker.io
    
    # Start Docker service
    sudo systemctl start docker
    sudo systemctl enable docker
+   
+   # Add user to docker group (then logout/login)
+   sudo usermod -aG docker $USER
    ```
 
-4. **Start the Kali Server**
+4. **Start the Kali Server** (on Kali Linux)
    ```bash
    cd kali-server
-   python kali_server.py --host 0.0.0.0 --port 5000
+   python kali_server.py --test
    ```
 
-5. **Start the MCP Server** (in another terminal)
+5. **Start the MCP Server** (can be on any system)
    ```bash
    cd mcp-server
    python mcp_server.py
    ```
 
+## ⚠️ Security Warning
+
+**IMPORTANT**: Be extremely cautious when running the Kali server with `sudo` privileges:
+
+```bash
+# ⚠️ DANGEROUS - Avoid if possible
+sudo python kali_server.py
+```
+
+**Why this is risky:**
+- The entire server runs with root privileges
+- All API endpoints and commands execute with full system access
+- Any compromise of the server grants complete root access to the system
+- No privilege separation or access control
+
+**Safer alternatives:**
+- Run the server as a regular user (many tools work without root)
+- Use specific sudo permissions only for commands that require them
+- Consider containerization or virtualization for isolation
+- Implement privilege escalation only when absolutely necessary
+
+**For production environments**: Please see `TODO.md` for planned security enhancements including granular privilege management and access controls.
+
 ## 📖 Usage
+
+### Starting the Kali Server
+
+The Kali server supports several command-line options:
+
+```bash
+# Basic usage
+python kali_server.py
+
+# Enable debug mode
+python kali_server.py --debug
+
+# Enable test mode (automatically manages Docker container)
+python kali_server.py --test
+
+# Custom port
+python kali_server.py --port 8080
+
+# Combined options
+python kali_server.py --test --debug --port 8080
+```
+
+#### Test Mode Features
+
+When using the `--test` option, the server will:
+- Automatically check if Docker is available
+- Build the test Docker image if needed
+- Start a test container with SSH and testing services
+- Provide a test environment with:
+  - SSH access on `localhost:2222` (testuser:testpass)
+  - Reverse shell listeners on ports 4444, 4445
+  - Sample test files for file transfer operations
+- Automatically stop and clean up the Docker container when the server is shut down (Ctrl+C)
+
+This is perfect for development, testing, and demonstration purposes without needing a separate Kali Linux environment.
 
 ### MCP Client Integration
 
@@ -301,9 +384,40 @@ download_result = {
    sudo apt update && sudo apt install nmap gobuster
    ```
 
+4. **Docker Test Mode Issues**
+   
+   If you encounter Docker-related errors when using `--test` mode **on Kali Linux**:
+   
+   **Common Docker fixes on Kali Linux:**
+   ```bash
+   # Install Docker
+   sudo apt update && sudo apt install docker.io
+   
+   # Start Docker service
+   sudo systemctl start docker
+   sudo systemctl enable docker
+   
+   # Add user to docker group (then logout/login)
+   sudo usermod -aG docker $USER
+   
+   # Test Docker access
+   docker --version
+   docker ps
+   ```
+   
+   **If Docker commands work manually but fail in test mode:**
+   - The issue might be PATH-related in the Python environment
+   - Try running with sudo: `sudo python kali_server.py --test`
+   - Check Docker socket permissions: `ls -la /var/run/docker.sock`
+   - Ensure you're running this on Kali Linux, not Windows
+
 ### Debug Mode
 Enable debug logging:
-```python
+```bash
+# For the server
+python kali_server.py --test --debug
+
+# For Python logging
 import logging
 logging.basicConfig(level=logging.DEBUG)
 ```

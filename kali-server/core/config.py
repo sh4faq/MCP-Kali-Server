@@ -5,9 +5,13 @@ import os
 import logging
 import sys
 
+# Version information
+VERSION = "0.1.0"
+
 # Configuration
 API_PORT = int(os.environ.get("API_PORT", 5000))
 DEBUG_MODE = os.environ.get("DEBUG_MODE", "0").lower() in ("1", "true", "yes", "y")
+TEST_MODE = os.environ.get("TEST_MODE", "0").lower() in ("1", "true", "yes", "y")
 COMMAND_TIMEOUT = 300  # 5 minutes default timeout
 
 # Configure logging

@@ -24,7 +24,7 @@ def test_kali_server():
             return False
     except Exception as e:
         print(f"   ❌ Kali server not accessible: {e}")
-        print(f"   💡 Start server: cd kali-server && sudo python kali_server_modular.py")
+        print(f"   💡 Start server: cd kali-server && sudo python kali_server.py")
         return False
 
 def test_ssh_connectivity():

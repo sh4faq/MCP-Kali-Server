@@ -2,6 +2,16 @@
 
 This document provides a comprehensive overview of all 31 MCP tools available in the enhanced `mcp_server.py`.
 
+## Key Features
+
+### 🐳 Docker Test Mode
+The server now includes automatic Docker container management for testing:
+- Use `--test` flag to automatically start/stop test environment
+- Provides SSH access on localhost:2222 (testuser:testpass)
+- Includes reverse shell listeners on ports 4444, 4445
+- Automatically cleaned up on server shutdown (Ctrl+C)
+- Perfect for development and demonstration purposes
+
 ## Original Tools (12)
 1. `nmap_scan` - Network discovery and security auditing
 2. `gobuster_scan` - Directory/file enumeration
