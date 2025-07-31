@@ -44,9 +44,36 @@ mcp-server/
 - **Metasploit**: Exploitation framework
 
 ### 🐚 Advanced Session Management
+- **SSH Session Manager**: Complete SSH session lifecycle management
+  - `start_ssh_session`: Establish secure SSH connections
+  - `execute_ssh_command`: Run commands in SSH sessions
+  - `get_ssh_status`: Monitor SSH session status
+  - `stop_ssh_session`: Cleanly terminate SSH sessions
+  - `list_ssh_sessions`: View all active SSH sessions
 - **Reverse Shell Manager**: Multi-session reverse shell handling
-- **SSH Manager**: Secure SSH session management
-- **File Operations**: Upload/download with checksum verification
+  - `start_reverse_shell_listener`: Start listening for reverse shells
+  - `execute_shell_command`: Execute commands in reverse shells
+  - `get_shell_status`: Monitor reverse shell session status
+  - `stop_reverse_shell`: Terminate reverse shell sessions
+  - `list_reverse_shell_sessions`: View all active reverse shell sessions
+
+### 📁 Comprehensive File Operations
+- **Kali Server File Management**:
+  - `upload_to_kali`: Upload files directly to Kali server
+  - `download_from_kali`: Download files from Kali server
+- **SSH File Transfer** (optimized for large files):
+  - `ssh_upload_content`: Upload content via SSH with auto-optimization
+  - `ssh_download_content`: Download content via SSH with chunking
+  - `ssh_estimate_transfer_time`: Estimate transfer times and get recommendations
+- **Reverse Shell File Transfer**:
+  - `reverse_shell_upload_file`: Upload files via reverse shell
+  - `reverse_shell_upload_content`: Upload content via reverse shell
+  - `reverse_shell_download_file`: Download files via reverse shell
+  - `reverse_shell_download_content`: Download content via reverse shell
+
+### 🛠️ System Integration
+- **Command Execution**: Direct command execution on Kali server
+- **Health Monitoring**: Server health checks and status monitoring
 - **Session Persistence**: Maintain multiple concurrent sessions
 
 ### 🔒 Security Features
