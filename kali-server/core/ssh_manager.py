@@ -93,18 +93,36 @@ class SSHSessionManager:
                 self.is_connected = True
                 test_result = self.send_command("echo 'SSH_CONNECTION_TEST'", timeout=10)
                 
+                logger.info(f"SSH connection test result: {test_result}")
+                
                 # If the command executed successfully, SSH connection is working  
-                if test_result.get("success") and "SSH_CONNECTION_TEST" in test_result.get("output", ""):
-                    logger.info(f"SSH session established successfully to {self.target}")
-                    return {
-                        "success": True,
-                        "message": f"SSH session started to {self.username}@{self.target}:{self.port}",
-                        "session_id": self.session_id,
-                        "target": self.target,
-                        "username": self.username
-                    }
+                if test_result.get("success"):
+                    output = test_result.get("output", "")
+                    if "SSH_CONNECTION_TEST" in output:
+                        logger.info(f"SSH session established successfully to {self.target}")
+                        return {
+                            "success": True,
+                            "message": f"SSH session started to {self.username}@{self.target}:{self.port}",
+                            "session_id": self.session_id,
+                            "target": self.target,
+                            "username": self.username
+                        }
+                    else:
+                        logger.warning(f"SSH test command succeeded but output unexpected: '{output}'")
+                        # Still consider it a success if command executed
+                        return {
+                            "success": True,
+                            "message": f"SSH session started to {self.username}@{self.target}:{self.port}",
+                            "session_id": self.session_id,
+                            "target": self.target,
+                            "username": self.username,
+                            "warning": "Connection test output was unexpected but command executed"
+                        }
+                else:
+                    logger.error(f"SSH test command failed: {test_result}")
             except Exception as test_error:
                 logger.error(f"SSH connection test failed: {str(test_error)}")
+                # Don't fail immediately - maybe the connection still works
             
             # If we get here, connection failed
             self.is_connected = False
@@ -151,7 +169,7 @@ class SSHSessionManager:
             
             # Send command and marker
             os.write(self.master_fd, (command + "\n").encode())
-            time.sleep(0.1)
+            time.sleep(0.2)  # Increased delay for base64 commands
             os.write(self.master_fd, (f"echo '{end_marker}'\n").encode())
             
             # Collect output until we see the end marker
@@ -176,15 +194,45 @@ class SSHSessionManager:
                             
                             # Check for end marker
                             if end_marker in text:
+                                if is_base64_cmd and text.strip() != f"echo '{end_marker}'" and not text.startswith("echo '"):
+                                    # This line has content AND the end marker - split them
+                                    # For base64, we need to be more careful about what we extract
+                                    if end_marker in text:
+                                        # Find the position of the end marker and extract everything before it
+                                        marker_pos = text.find(end_marker)
+                                        content_part = text[:marker_pos].strip()
+                                        
+                                        # For base64 commands, be very minimal in cleaning - just remove obvious shell prompts
+                                        import re
+                                        # Only clean if there's an obvious shell prompt at the start
+                                        if re.match(r'^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+:[^$]*\$\s', content_part):
+                                            # Remove only the shell prompt part
+                                            content_part = re.sub(r'^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+:[^$]*\$\s+', '', content_part)
+                                        
+                                        content_part = content_part.strip()
+                                        
+                                        # For base64, accept almost anything that's reasonably long
+                                        if len(content_part) > 5:  # Very minimal length check
+                                            output_lines.append(content_part)
+                                
                                 # Before returning, check if there's remaining data in buffer (base64 without newline)
                                 if buffer.strip():
                                     remaining_text = buffer.decode(errors='ignore').strip()
                                     if remaining_text and not self._is_ssh_noise(remaining_text):
                                         output_lines.append(remaining_text)
                                 
-                                output = '\n'.join(output_lines)
+                                # Clean ANSI escape sequences from all output lines before final output
+                                import re
+                                ansi_escape = re.compile(r'\x1b\[[0-9;]*[mGKHlh]|\x1b\[[?0-9;]*[lh]')
+                                cleaned_lines = []
+                                for line in output_lines:
+                                    clean_line = ansi_escape.sub('', line).strip()
+                                    if clean_line:  # Only keep non-empty lines after cleaning
+                                        cleaned_lines.append(clean_line)
+                                
+                                output = '\n'.join(cleaned_lines)
                                 if is_base64_cmd:
-                                    logger.info(f"[SSH] Base64 command completed: {len(output)} chars")
+                                    logger.info("[SSH] Base64 command completed successfully")
                                 return {
                                     "success": True,
                                     "output": output,
@@ -193,23 +241,42 @@ class SSHSessionManager:
                                     "execution_time": time.time() - start_time
                                 }
                             
-                            # Skip command echo and end marker echo, but be careful with base64 commands
-                            should_skip = (
-                                text == command or
-                                text.startswith("echo '") and end_marker in text or
-                                self._is_ssh_noise(text)
-                            )
+                            # Skip command echo and end marker echo, but be much more permissive
+                            should_skip = False
                             
-                            if not should_skip:
+                            # Skip exact command echo
+                            if text == command:
+                                should_skip = True
+                            # Skip end marker echo  
+                            elif text.startswith("echo '") and end_marker in text:
+                                should_skip = True
+                            # For base64 commands, be more permissive and don't filter potential base64 content
+                            elif is_base64_cmd:
+                                # Don't filter base64 content - only filter obvious shell prompts and noise
+                                if self._is_shell_prompt_only(text):
+                                    should_skip = True
+                            # Only skip obvious noise for non-base64 commands
+                            elif self._is_ssh_noise(text):
+                                should_skip = True
+                            
+                            if not should_skip and text:
                                 output_lines.append(text)
                                 
                     except OSError:
                         break
                         
-            # Timeout reached
-            output = '\n'.join(output_lines)
+            # Timeout reached - clean ANSI sequences from output before returning
+            import re
+            ansi_escape = re.compile(r'\x1b\[[0-9;]*[mGKHlh]|\x1b\[[?0-9;]*[lh]')
+            cleaned_lines = []
+            for line in output_lines:
+                clean_line = ansi_escape.sub('', line).strip()
+                if clean_line:  # Only keep non-empty lines after cleaning
+                    cleaned_lines.append(clean_line)
+            
+            output = '\n'.join(cleaned_lines)
             if is_base64_cmd:
-                logger.info(f"[SSH] Base64 command timeout: {len(output)} chars")
+                logger.info("[SSH] Base64 command timed out")
             return {
                 "success": True,
                 "output": output,
@@ -229,32 +296,86 @@ class SSHSessionManager:
     
     def _is_ssh_noise(self, line):
         """Check if a line is SSH noise that should be filtered out"""
-        # Don't filter potential base64 content (any line with base64 characters, even short ones)
         stripped = line.strip()
-        if stripped and all(c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=' for c in stripped):
+        
+        # Don't filter empty lines
+        if not stripped:
+            return True
+        
+        # Clean ANSI escape sequences FIRST before any other checks
+        import re
+        ansi_pattern = r'\x1b\[[0-9;]*[mGKHlh]|\x1b\[[?0-9;]*[lh]|\x1b\[[?0-9]+[lh]'
+        clean_line = re.sub(ansi_pattern, '', stripped).strip()
+        
+        # Don't filter content that looks like command output (starts and ends with single quotes)
+        if clean_line.startswith("'") and clean_line.endswith("'") and len(clean_line) > 2:
             return False
         
-        # Don't filter lines that look like command output (non-interactive content)
-        # But do filter obvious shell prompts and login messages
+        # Don't filter potential checksums (64-char hex strings like SHA256)
+        if len(clean_line) == 64 and all(c in '0123456789abcdef' for c in clean_line.lower()):
+            return False
+        
+        # Don't filter potential base64 content (longer than 10 chars)
+        if len(clean_line) > 10 and all(c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=' for c in clean_line):
+            return False
+        
+        # If after removing ANSI codes, the line is empty, it's noise
+        if not clean_line:
+            return True
+        
+        # Filter obvious shell prompts and login messages (use clean_line, not stripped)
         noise_patterns = [
             "Last login:",
             "Welcome to",
             "bash-",
         ]
         
-        # Filter shell prompts ($ or # at end, or username@hostname patterns)
-        if stripped.endswith('$') or stripped.endswith('#') or stripped == '$' or stripped == '#':
-            return True
-        if stripped.endswith('$ ') or stripped.endswith('# '):
-            return True
-        
-        # Filter username@hostname patterns more specifically
-        if '@' in stripped and (stripped.endswith('$') or stripped.endswith('#') or ':' in stripped):
-            return True
-        
         for pattern in noise_patterns:
-            if pattern in line:
+            if pattern in clean_line:
                 return True
+        
+        # Filter shell prompts ($ or # at end, or username@hostname patterns)
+        if clean_line.endswith('$') or clean_line.endswith('#') or clean_line == '$' or clean_line == '#':
+            return True
+        if clean_line.endswith('$ ') or clean_line.endswith('# '):
+            return True
+        
+        # Filter username@hostname patterns more specifically (but allow normal content)
+        if '@' in clean_line and (clean_line.endswith('$') or clean_line.endswith('#')):
+            # Check if it looks like a shell prompt (user@host:path$ or user@host#)
+            if ':' in clean_line and (clean_line.endswith('$') or clean_line.endswith('#')):
+                return True
+            # Simple user@host$ pattern
+            if clean_line.count('@') == 1 and (clean_line.endswith('$') or clean_line.endswith('#')):
+                return True
+        
+        # Don't filter actual command output - be more permissive
+        return False
+    
+    def _is_shell_prompt_only(self, line):
+        """Check if a line is ONLY a shell prompt (more restrictive than _is_ssh_noise)"""
+        stripped = line.strip()
+        
+        if not stripped:
+            return True
+        
+        # Clean ANSI escape sequences first
+        import re
+        ansi_pattern = r'\x1b\[[0-9;]*[mGKHlh]|\x1b\[[?0-9;]*[lh]|\x1b\[[?0-9]+[lh]'
+        clean_line = re.sub(ansi_pattern, '', stripped).strip()
+        
+        if not clean_line:
+            return True
+        
+        # Only filter obvious shell prompts - be very restrictive
+        if clean_line.endswith('$') or clean_line.endswith('#'):
+            if '@' in clean_line and ':' in clean_line:
+                # Looks like user@host:path$ or user@host:path#
+                return True
+            elif clean_line == '$' or clean_line == '#':
+                # Just $ or #
+                return True
+        
         return False
     
     def get_status(self) -> Dict[str, Any]:
@@ -291,3 +412,30 @@ class SSHSessionManager:
         
         self.is_connected = False
         logger.info("SSH session stopped")
+
+    def upload_content(self, content: str, remote_file: str, encoding: str = "base64") -> Dict[str, Any]:
+        """Upload content with checksum verification using FileTransferManager."""
+        try:
+            from utils.transfer_manager import transfer_manager
+            return transfer_manager.upload_via_ssh_with_verification(
+                ssh_manager=self,
+                content=content,
+                remote_file=remote_file,
+                encoding=encoding
+            )
+        except Exception as e:
+            logger.error(f"Error in SSH upload: {str(e)}")
+            return {"error": str(e), "success": False}
+
+    def download_content(self, remote_file: str, encoding: str = "base64") -> Dict[str, Any]:
+        """Download content with checksum verification using FileTransferManager."""
+        try:
+            from utils.transfer_manager import transfer_manager
+            return transfer_manager.download_via_ssh_with_verification(
+                ssh_manager=self,
+                remote_file=remote_file,
+                encoding=encoding
+            )
+        except Exception as e:
+            logger.error(f"Error in SSH download: {str(e)}")
+            return {"error": str(e), "success": False}

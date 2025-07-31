@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """API Routes module for Kali Server."""
 
+import os
+import base64
 import traceback
 from flask import Flask, request, jsonify
 from core.config import logger, active_sessions, active_ssh_sessions
@@ -10,10 +12,7 @@ from tools.kali_tools import (
     run_nmap, run_gobuster, run_dirb, run_nikto, run_sqlmap,
     run_metasploit, run_hydra, run_john, run_wpscan, run_enum4linux
 )
-from utils.file_operations import (
-    upload_content_to_kali, download_content_from_kali,
-    upload_file_to_target, upload_content_to_target, download_file_from_target, download_content_from_target
-)
+from utils.kali_operations import upload_content, download_content
 
 
 def setup_routes(app: Flask):
@@ -245,7 +244,7 @@ def setup_routes(app: Flask):
 
     @app.route("/api/ssh/session/<session_id>/upload_content", methods=["POST"])
     def upload_content_to_ssh_session(session_id):
-        """Upload content to target via SSH session with optimized handling for large files"""
+        """Upload content to target via SSH session with integrity verification"""
         try:
             if session_id not in active_ssh_sessions:
                 return jsonify({"error": f"SSH session {session_id} not found"}), 404
@@ -253,8 +252,7 @@ def setup_routes(app: Flask):
             params = request.json or {}
             content = params.get("content", "")
             remote_file = params.get("remote_file", "")
-            encoding = params.get("encoding", "utf-8")
-            method = params.get("method", "auto")
+            encoding = params.get("encoding", "base64")
             
             if not content or not remote_file:
                 return jsonify({
@@ -263,85 +261,29 @@ def setup_routes(app: Flask):
             
             ssh_manager = active_ssh_sessions[session_id]
             
-            # Decode content first to determine size
-            if encoding == "base64":
-                import base64
-                try:
-                    decoded_content = base64.b64decode(content).decode('utf-8')
-                except:
-                    decoded_content = base64.b64decode(content)
-            else:
-                decoded_content = content
+            # Use the new upload method with verification
+            result = ssh_manager.upload_content(content, remote_file, encoding)
             
-            # Determine file size and optimal method
-            if isinstance(decoded_content, bytes):
-                file_size = len(decoded_content)
-                content_for_upload = base64.b64encode(decoded_content).decode('ascii')
-            else:
-                file_size = len(decoded_content.encode('utf-8'))
-                content_for_upload = base64.b64encode(decoded_content.encode('utf-8')).decode('ascii')
-            
-            logger.info(f"SSH upload: {file_size} bytes to {remote_file}")
-            
-            # Auto-select method based on file size
-            if method == "auto":
-                if file_size < 50 * 1024:
-                    method = "single_command"
-                elif file_size < 500 * 1024:
-                    method = "streaming"
+            # Check if the operation failed and determine appropriate HTTP status code
+            if not result.get("success"):
+                error_message = result.get("error", "Unknown error")
+                
+                # Check for permission errors
+                if ("Permission denied" in error_message or
+                    "Access denied" in error_message):
+                    return jsonify(result), 403
+                
+                # Check for file system errors
+                elif ("No space left" in error_message or
+                      "Disk full" in error_message):
+                    return jsonify(result), 507  # Insufficient Storage
+                
+                # Other errors - return 500
                 else:
-                    method = "chunked"
+                    return jsonify(result), 500
             
-            import time
-            start_time = time.time()
-            
-            if method == "single_command":
-                upload_cmd = f"echo '{content_for_upload}' | base64 -d > {remote_file}"
-                result = ssh_manager.send_command(upload_cmd, timeout=60)
-            elif method == "streaming":
-                heredoc_command = f"""cat << 'EOF_B64' | base64 -d > {remote_file}
-{content_for_upload}
-EOF_B64"""
-                result = ssh_manager.send_command(heredoc_command, timeout=120)
-            elif method == "chunked":
-                chunk_size = 8192
-                chunks = [content_for_upload[i:i+chunk_size] for i in range(0, len(content_for_upload), chunk_size)]
-                temp_b64_file = f"{remote_file}.b64temp"
-                
-                ssh_manager.send_command(f"rm -f {temp_b64_file}", timeout=10)
-                
-                for i, chunk in enumerate(chunks):
-                    append_cmd = f"echo '{chunk}' >> {temp_b64_file}"
-                    chunk_result = ssh_manager.send_command(append_cmd, timeout=30)
-                    if not chunk_result.get('success'):
-                        return jsonify({
-                            "success": False,
-                            "error": f"Failed to upload chunk {i+1}/{len(chunks)}"
-                        }), 500
-                
-                decode_cmd = f"base64 -d {temp_b64_file} > {remote_file} && rm {temp_b64_file}"
-                result = ssh_manager.send_command(decode_cmd, timeout=60)
-            else:
-                return jsonify({"error": f"Unsupported upload method: {method}"}), 400
-            
-            upload_time = time.time() - start_time
-            
-            if result.get('success'):
-                verify_result = ssh_manager.send_command(f"ls -la {remote_file}", timeout=10)
-                return jsonify({
-                    "success": True,
-                    "message": f"Content uploaded successfully via SSH using {method} method",
-                    "remote_file": remote_file,
-                    "file_size": file_size,
-                    "method": method,
-                    "upload_time_seconds": round(upload_time, 2),
-                    "verification": verify_result.get('output', '').strip()
-                })
-            else:
-                return jsonify({
-                    "success": False,
-                    "error": f"Upload failed using {method} method"
-                }), 500
+            # Success case
+            return jsonify(result)
                 
         except Exception as e:
             logger.error(f"Error in SSH upload endpoint: {str(e)}")
@@ -349,15 +291,13 @@ EOF_B64"""
 
     @app.route("/api/ssh/session/<session_id>/download_content", methods=["POST"])
     def download_content_from_ssh_session(session_id):
-        """Download content from target via SSH session with optimized handling for large files"""
+        """Download content from target via SSH session with integrity verification"""
         try:
             if session_id not in active_ssh_sessions:
                 return jsonify({"error": f"SSH session {session_id} not found"}), 404
             
             params = request.json or {}
             remote_file = params.get("remote_file", "")
-            method = params.get("method", "auto")
-            max_size_mb = params.get("max_size_mb", 100)
             
             if not remote_file:
                 return jsonify({
@@ -366,136 +306,30 @@ EOF_B64"""
             
             ssh_manager = active_ssh_sessions[session_id]
             
-            # Check if file exists and get size
-            stat_result = ssh_manager.send_command(f"stat -c %s {remote_file} 2>/dev/null || echo 'FILE_NOT_FOUND'", timeout=10)
+            # Use the new download method with verification
+            result = ssh_manager.download_content(remote_file, encoding="base64")
             
-            if not stat_result.get('success') or 'FILE_NOT_FOUND' in stat_result.get('output', ''):
-                return jsonify({
-                    "success": False,
-                    "error": f"File {remote_file} not found on target"
-                }), 404
-            
-            try:
-                file_size_str = stat_result.get('output', '0').strip()
+            # Check if the operation failed and determine appropriate HTTP status code
+            if not result.get("success"):
+                error_message = result.get("error", "Unknown error")
                 
-                # Clean ANSI escape sequences and control characters
-                import re
-                # Remove ANSI escape sequences
-                ansi_escape = re.compile(r'\x1b\[[0-9;]*[mGKHlh]|\x1b\[[?0-9;]*[lh]')
-                clean_output = ansi_escape.sub('', file_size_str)
-                # Remove only non-digit control characters (preserve 0-9)
-                clean_output = re.sub(r'[\r\n\x00-\x08\x0b-\x1f\x7f-\x9f]', '', clean_output).strip()
-                # Remove SSH_END_xxxxx markers
-                clean_output = re.sub(r'SSH_END_[a-f0-9]+', '', clean_output).strip()
-                # Extract only digits
-                clean_output = re.sub(r'[^0-9]', '', clean_output)
+                # Check for file not found errors
+                if ("No such file or directory" in error_message or 
+                    "File not found" in error_message or
+                    "does not exist" in error_message):
+                    return jsonify(result), 404
                 
-                file_size = int(clean_output)
-                file_size_mb = file_size / (1024 * 1024)
-            except ValueError as e:
-                logger.error(f"Failed to parse file size from stat output: {e}")
-                return jsonify({
-                    "success": False,
-                    "error": f"Failed to get file size: invalid stat output"
-                }), 500
+                # Check for permission errors
+                elif ("Permission denied" in error_message or
+                      "Access denied" in error_message):
+                    return jsonify(result), 403
                 
-            if file_size_mb > max_size_mb:
-                return jsonify({
-                    "success": False,
-                    "error": f"File too large: {file_size_mb:.1f}MB (max: {max_size_mb}MB)"
-                }), 400
-            
-            logger.info(f"SSH download: {file_size} bytes from {remote_file}")
-            
-            # Auto-select method based on file size
-            if method == "auto":
-                method = "direct" if file_size < 1024 * 1024 else "chunked"
-            
-            import time
-            start_time = time.time()
-            
-            if method == "direct":
-                # Use a command that ensures proper output separation
-                download_cmd = f"base64 -w 0 {remote_file} && echo"
-                result = ssh_manager.send_command(download_cmd, timeout=120)
-                
-                if result.get('success'):
-                    content_b64_raw = result.get('output', '').strip()
-                    
-                    # Clean base64 output from SSH markers and control characters
-                    import re
-                    # Remove ANSI escape sequences
-                    ansi_escape = re.compile(r'\x1b\[[0-9;]*[mGKHlh]|\x1b\[[?0-9;]*[lh]')
-                    content_b64_clean = ansi_escape.sub('', content_b64_raw)
-                    # Remove SSH_END_xxxxx markers
-                    content_b64_clean = re.sub(r'SSH_END_[a-f0-9]+', '', content_b64_clean)
-                    # Keep only valid base64 characters (A-Z, a-z, 0-9, +, /, =)
-                    content_b64_clean = re.sub(r'[^A-Za-z0-9+/=]', '', content_b64_clean)
-                    
-                    logger.info(f"SSH download: {len(content_b64_clean)} base64 chars from {remote_file}")
-                    
-                    download_time = time.time() - start_time
-                    return jsonify({
-                        "success": True,
-                        "content": content_b64_clean,
-                        "remote_file": remote_file,
-                        "file_size": file_size,
-                        "method": method,
-                        "download_time_seconds": round(download_time, 2)
-                    })
+                # Other errors - return 500
                 else:
-                    return jsonify({
-                        "success": False,
-                        "error": "Failed to download file content"
-                    }), 500
-                
-            elif method == "chunked":
-                chunk_size = 8192
-                total_chunks = (file_size + chunk_size - 1) // chunk_size
-                temp_b64_file = f"{remote_file}.b64temp"
-                
-                encode_cmd = f"base64 -w 0 {remote_file} > {temp_b64_file}"
-                encode_result = ssh_manager.send_command(encode_cmd, timeout=120)
-                
-                if not encode_result.get('success'):
-                    return jsonify({
-                        "success": False,
-                        "error": "Failed to encode file for chunked download"
-                    }), 500
-                
-                content_parts = []
-                chunk_b64_size = (chunk_size * 4) // 3
-                
-                for i in range(total_chunks):
-                    start_pos = i * chunk_b64_size
-                    chunk_cmd = f"dd if={temp_b64_file} bs=1 skip={start_pos} count={chunk_b64_size} 2>/dev/null"
-                    chunk_result = ssh_manager.send_command(chunk_cmd, timeout=30)
-                    
-                    if chunk_result.get('success'):
-                        content_parts.append(chunk_result.get('output', ''))
-                    else:
-                        ssh_manager.send_command(f"rm -f {temp_b64_file}", timeout=10)
-                        return jsonify({
-                            "success": False,
-                            "error": f"Failed to download chunk {i+1}/{total_chunks}"
-                        }), 500
-                
-                ssh_manager.send_command(f"rm -f {temp_b64_file}", timeout=10)
-                content_b64 = ''.join(content_parts)
-                download_time = time.time() - start_time
-                
-                return jsonify({
-                    "success": True,
-                    "content": content_b64,
-                    "remote_file": remote_file,
-                    "file_size": file_size,
-                    "method": method,
-                    "chunks": total_chunks,
-                    "download_time_seconds": round(download_time, 2)
-                })
+                    return jsonify(result), 500
             
-            else:
-                return jsonify({"error": f"Unsupported download method: {method}"}), 400
+            # Success case
+            return jsonify(result)
                     
         except Exception as e:
             logger.error(f"Error in SSH download endpoint: {str(e)}")
@@ -649,7 +483,7 @@ EOF_B64"""
             if not content or not remote_path:
                 return jsonify({"error": "Content and remote_path are required"}), 400
             
-            result = upload_content_to_kali(content, remote_path)
+            result = upload_content(content, remote_path)
             return jsonify(result)
         except Exception as e:
             logger.error(f"Error in upload to Kali: {str(e)}")
@@ -667,7 +501,7 @@ EOF_B64"""
             if not remote_file:
                 return jsonify({"error": "remote_file parameter is required"}), 400
             
-            result = download_content_from_kali(remote_file)
+            result = download_content(remote_file)
             return jsonify(result)
         except Exception as e:
             logger.error(f"Error in download from Kali: {str(e)}")
@@ -692,7 +526,14 @@ EOF_B64"""
                 return jsonify({"error": f"Session {session_id} not found"}), 404
             
             shell_manager = active_sessions[session_id]
-            result = upload_file_to_target(shell_manager, local_file, remote_file, method)
+            # Read the local file content and upload via shell manager
+            if not os.path.exists(local_file):
+                result = {"error": f"Local file not found: {local_file}", "success": False}
+            else:
+                with open(local_file, "rb") as f:
+                    file_content = f.read()
+                content_b64 = base64.b64encode(file_content).decode('ascii')
+                result = shell_manager.upload_content(content_b64, remote_file, "base64")
             return jsonify(result)
         except Exception as e:
             logger.error(f"Error in upload file to target: {str(e)}")
@@ -718,7 +559,7 @@ EOF_B64"""
                 return jsonify({"error": f"Session {session_id} not found"}), 404
             
             shell_manager = active_sessions[session_id]
-            result = upload_content_to_target(shell_manager, content, remote_file, method, encoding)
+            result = shell_manager.upload_content(content, remote_file, encoding)
             return jsonify(result)
         except Exception as e:
             logger.error(f"Error in upload content to target: {str(e)}")
@@ -743,7 +584,16 @@ EOF_B64"""
                 return jsonify({"error": f"Session {session_id} not found"}), 404
             
             shell_manager = active_sessions[session_id]
-            result = download_file_from_target(shell_manager, remote_file, local_file, method)
+            # Download via shell manager and save to local file
+            result = shell_manager.download_content(remote_file, "base64")
+            if result.get("success"):
+                content_b64 = result.get("content", "")
+                file_content = base64.b64decode(content_b64)
+                os.makedirs(os.path.dirname(local_file), exist_ok=True)
+                with open(local_file, "wb") as f:
+                    f.write(file_content)
+                result["local_file"] = local_file
+                result["message"] = f"File downloaded successfully: {remote_file} -> {local_file}"
             return jsonify(result)
         except Exception as e:
             logger.error(f"Error in download file from target: {str(e)}")
@@ -767,7 +617,7 @@ EOF_B64"""
                 return jsonify({"error": f"Session {session_id} not found"}), 404
             
             shell_manager = active_sessions[session_id]
-            result = download_content_from_target(shell_manager, remote_file, method)
+            result = shell_manager.download_content(remote_file, "base64")
             return jsonify(result)
         except Exception as e:
             logger.error(f"Error in download content from target: {str(e)}")

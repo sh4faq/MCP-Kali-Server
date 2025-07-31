@@ -475,153 +475,32 @@ class ReverseShellManager:
         self.is_connected = False
         logger.info("Reverse shell session stopped")
     
-    def upload_content(self, content, remote_path, method="auto"):
-        """
-        Optimized file upload with automatic method selection
-        
-        Args:
-            content: File content (string or bytes)
-            remote_path: Target path on remote system
-            method: Upload method ("auto", "optimized", "streaming", "single_command")
-        
-        Returns:
-            dict: Upload result with success status and performance metrics
-        """
+    def upload_content(self, content: str, remote_file: str, encoding: str = "base64") -> Dict[str, Any]:
+        """Upload content with checksum verification using FileTransferManager."""
         try:
-            if method == "auto":
-                content_size = len(content) if isinstance(content, str) else len(content)
-                if content_size < 50000:  # <50KB
-                    method = "single_command"
-                elif content_size < 500000:  # <500KB
-                    method = "streaming" 
-                else:  # >500KB
-                    method = "optimized"
-            
-            logger.info(f"🚀 Optimized upload: {len(content):,} bytes using {method} method")
-            
-            if method == "optimized":
-                return self._upload_optimized(content, remote_path)
-            elif method == "streaming":
-                return self._upload_streaming(content, remote_path)
-            elif method == "single_command":
-                return self._upload_single_command(content, remote_path)
-            else:
-                return {"success": False, "error": f"Unknown method: {method}"}
-                
+            from utils.transfer_manager import transfer_manager
+            return transfer_manager.upload_via_reverse_shell_with_verification(
+                shell_manager=self,
+                content=content,
+                remote_file=remote_file,
+                encoding=encoding
+            )
         except Exception as e:
-            logger.error(f"Upload error: {str(e)}")
-            return {"success": False, "error": str(e)}
-    
-    def _upload_optimized(self, content, remote_path):
-        """Optimized chunking with batch processing - for large files"""
-        start_time = time.time()
-        
-        # Encode content
-        if isinstance(content, bytes):
-            encoded_content = base64.b64encode(content).decode('ascii')
-        else:
-            encoded_content = base64.b64encode(content.encode('utf-8')).decode('ascii')
-        
-        # Use LARGE chunks for efficiency (10KB instead of 1KB)
-        chunk_size = 10000  
-        chunks = [encoded_content[i:i+chunk_size] for i in range(0, len(encoded_content), chunk_size)]
-        
-        logger.info(f"   📦 {len(chunks)} chunks of {chunk_size} chars each")
-        
-        temp_b64_file = f"{remote_path}.b64temp"
-        
-        # Clear any existing temp file
-        result = self.send_command(f"rm -f {temp_b64_file}", timeout=5)
-        if not result.get('success'):
-            return {"success": False, "error": "Failed to prepare temp file"}
-        
-        # Upload chunks in batches (10 chunks at once)
-        batch_size = 10
-        for i in range(0, len(chunks), batch_size):
-            batch = chunks[i:i+batch_size]
-            
-            # Create single command for multiple chunks
-            multi_chunk_command = ""
-            for j, chunk in enumerate(batch):
-                if i == 0 and j == 0:
-                    multi_chunk_command += f"echo '{chunk}' > {temp_b64_file}; "
-                else:
-                    multi_chunk_command += f"echo '{chunk}' >> {temp_b64_file}; "
-            
-            # Execute batch command
-            result = self.send_command(multi_chunk_command.rstrip('; '), timeout=30)
-            if not result.get('success'):
-                return {"success": False, "error": f"Failed at batch {i//batch_size + 1}"}
-        
-        # Decode the complete file
-        decode_result = self.send_command(f"base64 -d {temp_b64_file} > {remote_path} && rm {temp_b64_file}", timeout=60)
-        
-        upload_time = time.time() - start_time
-        
-        if decode_result.get('success'):
-            return {
-                "success": True,
-                "method": "optimized",
-                "chunks": len(chunks),
-                "upload_time": upload_time,
-                "speed": f"{len(content) / upload_time / 1024:.1f} KB/s"
-            }
-        else:
-            return {"success": False, "error": "Failed to decode uploaded file"}
-    
-    def _upload_streaming(self, content, remote_path):
-        """Streaming upload using heredoc - for medium files"""
-        start_time = time.time()
-        
-        if isinstance(content, bytes):
-            encoded_content = base64.b64encode(content).decode('ascii')
-        else:
-            encoded_content = base64.b64encode(content.encode('utf-8')).decode('ascii')
-        
-        # Use heredoc for single-command upload
-        heredoc_command = f"""cat << 'EOF_B64' | base64 -d > {remote_path}
-{encoded_content}
-EOF_B64"""
-        
-        result = self.send_command(heredoc_command, timeout=120)
-        
-        upload_time = time.time() - start_time
-        
-        if result.get('success'):
-            return {
-                "success": True,
-                "method": "streaming", 
-                "upload_time": upload_time,
-                "speed": f"{len(content) / upload_time / 1024:.1f} KB/s"
-            }
-        else:
-            return {"success": False, "error": "Streaming upload failed"}
-    
-    def _upload_single_command(self, content, remote_path):
-        """Single command upload - for small files"""
-        start_time = time.time()
-        
-        if isinstance(content, bytes):
-            encoded_content = base64.b64encode(content).decode('ascii')
-        else:
-            encoded_content = base64.b64encode(content.encode('utf-8')).decode('ascii')
-        
-        # Single command for small files
-        single_command = f"echo '{encoded_content}' | base64 -d > {remote_path}"
-        result = self.send_command(single_command, timeout=60)
-        
-        upload_time = time.time() - start_time
-        
-        if result.get('success'):
-            return {
-                "success": True,
-                "method": "single_command",
-                "upload_time": upload_time,
-                "speed": f"{len(content) / upload_time / 1024:.1f} KB/s"
-            }
-        else:
-            # Fallback to optimized for larger files
-            return self._upload_optimized(content, remote_path)
+            logger.error(f"Error in reverse shell upload: {str(e)}")
+            return {"error": str(e), "success": False}
+
+    def download_content(self, remote_file: str, encoding: str = "base64") -> Dict[str, Any]:
+        """Download content with checksum verification using FileTransferManager."""
+        try:
+            from utils.transfer_manager import transfer_manager
+            return transfer_manager.download_via_reverse_shell_with_verification(
+                shell_manager=self,
+                remote_file=remote_file,
+                encoding=encoding
+            )
+        except Exception as e:
+            logger.error(f"Error in reverse shell download: {str(e)}")
+            return {"error": str(e), "success": False}
 
 
 class CommandExecutor:

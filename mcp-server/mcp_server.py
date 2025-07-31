@@ -118,15 +118,18 @@ class KaliToolsClient:
 
 def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
     """
-    Set up the MCP server with all tool functions
+    Set up the MCP server with all tool functions including enhanced file transfer capabilities
     
     Args:
         kali_client: Initialized KaliToolsClient
         
     Returns:
-        Configured FastMCP instance
+        Configured FastMCP instance with enhanced transfer tools
     """
     mcp = FastMCP("kali-mcp")
+    
+    # Remove enhanced server initialization for now
+    # Will implement enhanced features on the Kali server side
     
     @mcp.tool()
     def nmap_scan(target: str, scan_type: str = "-sV", ports: str = "", additional_args: str = "") -> Dict[str, Any]:
@@ -746,6 +749,69 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
             "method": method
         }
         return kali_client.safe_post("api/target/download_content", data)
+
+    # Enhanced File Transfer Tools with Integrity Verification
+    @mcp.tool()
+    def upload_to_kali(content: str, remote_path: str) -> Dict[str, Any]:
+        """
+        Upload content directly to Kali server with integrity verification using SHA256 checksums.
+        
+        Args:
+            content: Base64 encoded content to upload
+            remote_path: Path where to store the file on Kali server
+            
+        Returns:
+            Upload result with integrity verification details
+        """
+        data = {
+            "content": content,
+            "remote_path": remote_path
+        }
+        return kali_client.safe_post("api/kali/upload", data)
+
+    @mcp.tool()
+    def download_from_kali(file_path: str) -> Dict[str, Any]:
+        """
+        Download files from Kali server with integrity verification using SHA256 checksums.
+        
+        Args:
+            file_path: Path to the file on Kali server to download
+            
+        Returns:
+            Download result with integrity verification details and base64 encoded content
+        """
+        data = {
+            "file_path": file_path
+        }
+        return kali_client.safe_post("api/kali/download", data)
+
+    @mcp.tool()
+    def get_transfer_performance_report() -> Dict[str, Any]:
+        """
+        Get comprehensive transfer performance statistics and analytics.
+        
+        Returns:
+            Performance report with transfer statistics, success rates, and throughput metrics
+        """
+        return kali_client.safe_get("api/transfer/performance")
+
+    @mcp.tool()
+    def estimate_transfer_time(content_size: int, method: str = "direct_kali") -> Dict[str, Any]:
+        """
+        Estimate transfer time for given content size and method with optimization recommendations.
+        
+        Args:
+            content_size: Size of content in bytes
+            method: Transfer method to analyze (direct_kali, ssh, reverse_shell)
+            
+        Returns:
+            Transfer time estimation with optimization recommendations
+        """
+        data = {
+            "content_size": content_size,
+            "method": method
+        }
+        return kali_client.safe_post("api/transfer/estimate", data)
 
     return mcp
 
