@@ -1,0 +1,8 @@
+// Overwrite settings by placing them into your settings file.
+{
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    {
+      "file": ".github/commit-instructions.md"
+    }
+  ]
+}
