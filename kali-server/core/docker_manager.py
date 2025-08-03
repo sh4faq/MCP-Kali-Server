@@ -71,7 +71,6 @@ class DockerManager:
                 
                 if docker_cmd:
                     command[0] = docker_cmd
-                    logger.debug(f"Using Docker at: {docker_cmd}")
             
             result = subprocess.run(
                 command,

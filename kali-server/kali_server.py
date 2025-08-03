@@ -125,9 +125,15 @@ def main():
     logger.info(f"Starting server on port {API_PORT}")
     logger.info(f"Debug mode: {DEBUG_MODE}")
     logger.info(f"Test mode: {TEST_MODE}")
+    
+    # Display network interfaces
+    from core.config import display_network_interfaces
+    display_network_interfaces(test_mode=TEST_MODE)
+    
     if TEST_MODE:
         logger.info("🐳 Docker test container is running:")
         logger.info("   - SSH: localhost:2222 (testuser:testpass)")
+        logger.info("   - Web: localhost:8080 (Apache2 with vulnerable PHP apps)")
         logger.info("   - Reverse shell ports: 4444, 4445")
     logger.info("Available modules:")
     logger.info("  - SSH Manager: SSH session management")

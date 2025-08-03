@@ -226,3 +226,5 @@ coverage/
 nmap_results/
 scan_results/
 exploit_output/
+/.VSCodeCounter
+/tmp

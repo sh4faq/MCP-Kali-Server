@@ -2,39 +2,58 @@
 
 ## Quick Start
 
-### Run everything in one command:
+### Run all tests:
 ```batch
-run_all.bat
-```
-
-### Or run step by step:
-
-1. **Start Docker container:**
-```batch
-cd docker
-start.bat
-```
-
-2. **Run tests:**
-```batch
-cd ..
+# SSH Manager tests
 python -m pytest kali\test_ssh_manager.py -v
+
+# Reverse Shell Manager tests
+python -m pytest kali\test_reverse_shell_manager.py -v
+
+# Transfer integrity tests
 python -m pytest kali\test_transfer_integrity.py -v
 ```
+### Or run step by step:
 
-3. **Stop Docker:**
+1. **Start Docker container manually (if needed)**
+2. **Run tests:**
 ```batch
-docker stop kali-test-ssh
-docker rm kali-test-ssh
+python -m pytest kali\test_ssh_manager.py -v
+python -m pytest kali\test_reverse_shell_manager.py -v
+python -m pytest kali\test_transfer_integrity.py -v
 ```
 
 ## Available Tests
 
 ### Core Tests
 - `test_ssh_manager.py` - SSH connection and session management tests
+- `test_reverse_shell_manager.py` - Reverse shell connection and session management tests
 - `test_transfer_integrity.py` - File transfer integrity and checksum verification tests
 - `test_config.py` - Configuration management tests
 - `test_environment.py` - Environment setup and validation tests
+
+### Reverse Shell Manager Tests
+The reverse shell manager tests validate the complete reverse shell functionality:
+
+#### Test Categories:
+- **Listener Management**: Start/stop reverse shell listeners on different ports
+- **Payload Generation**: Generate various types of reverse shell payloads (bash, python, netcat, PHP)
+- **Session Management**: Handle multiple concurrent reverse shell sessions
+- **Command Execution**: Test command execution through established reverse shell sessions
+- **File Operations**: Upload/download files through reverse shell sessions
+- **Web Triggering**: Trigger reverse shells via vulnerable web applications
+- **Error Handling**: Test error scenarios and edge cases
+- **Status Checking**: Verify session status and connection information
+
+#### Usage:
+```batch
+# Run all reverse shell tests
+python -m pytest kali\test_reverse_shell_manager.py -v
+
+# Run specific test methods
+python -m pytest kali\test_reverse_shell_manager.py::TestReverseShellManager::test_01_reverse_shell_listener_start_stop -v
+python -m pytest kali\test_reverse_shell_manager.py::TestReverseShellManager::test_02_reverse_shell_payload_generation -v
+```
 
 ### Transfer Integrity Tests
 The transfer integrity tests validate the new checksum verification system:

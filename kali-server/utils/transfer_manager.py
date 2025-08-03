@@ -238,7 +238,6 @@ class FileTransferManager:
             **stats,
             "timestamp": time.time()
         }
-        logger.debug(f"Recorded transfer stats for {transfer_id}: {stats}")
     
     def get_transfer_performance_report(self) -> Dict[str, Any]:
         """
@@ -553,9 +552,6 @@ class FileTransferManager:
                 original_content = content.encode('utf-8')
                 source_checksum = self.calculate_checksum(original_content)
             
-            logger.info(f"SSH upload: Starting upload of {len(original_content)} bytes to {remote_file}")
-            logger.info(f"Source checksum: {source_checksum}")
-            
             # Upload content using SSH manager's direct method
             # For large base64 content, use printf instead of echo to avoid shell limitations
             if encoding == "base64":
@@ -568,8 +564,7 @@ class FileTransferManager:
                 escaped_content = content.replace("'", "'\"'\"'")
                 upload_cmd = f"echo '{escaped_content}' > {remote_file}"
             
-            logger.info(f"Uploading {len(content)} bytes to {remote_file}")
-            result = ssh_manager.send_command(upload_cmd, timeout=120)
+            result = ssh_manager.send_command(upload_cmd, timeout=300)
             
             if not result.get('success'):
                 return {
@@ -581,7 +576,7 @@ class FileTransferManager:
             
             # Verify upload by calculating checksum on target
             verify_cmd = f"sha256sum {remote_file} | cut -d' ' -f1"
-            verify_result = ssh_manager.send_command(verify_cmd, timeout=30)
+            verify_result = ssh_manager.send_command(verify_cmd, timeout=60)
             
             if not verify_result.get('success'):
                 return {
@@ -597,14 +592,11 @@ class FileTransferManager:
             checksum_match = re.search(r'([a-f0-9]{64})', target_checksum)
             if checksum_match:
                 target_checksum = checksum_match.group(1)
-            else:
-                logger.error(f"No valid checksum found in output: {target_checksum[:100]}...")
             
             # Check if file exists first if checksum is empty
             if not target_checksum or len(target_checksum) != 64:
                 file_check_cmd = f"ls -la {remote_file}"
                 file_check_result = ssh_manager.send_command(file_check_cmd, timeout=10)
-                logger.error(f"File check result: {file_check_result}")
                 return {
                     "success": False,
                     "error": f"Target checksum is invalid. Length: {len(target_checksum)}, Content: {target_checksum[:50]}..., File check: {file_check_result.get('output', 'No output')}"
@@ -620,8 +612,6 @@ class FileTransferManager:
                 }
             
             transfer_time = time.time() - start_time
-            
-            logger.info(f"SSH upload verified: {source_checksum[:16]}... == {target_checksum[:16]}...")
             
             return {
                 "success": True,
@@ -655,7 +645,7 @@ class FileTransferManager:
             
             # Get source checksum from target
             checksum_cmd = f"sha256sum {remote_file} | cut -d' ' -f1"
-            checksum_result = ssh_manager.send_command(checksum_cmd, timeout=30)
+            checksum_result = ssh_manager.send_command(checksum_cmd, timeout=60)
             
             if not checksum_result.get('success'):
                 return {
@@ -697,7 +687,7 @@ class FileTransferManager:
             
             # Download content as base64
             download_cmd = f"base64 -w 0 {remote_file}"
-            download_result = ssh_manager.send_command(download_cmd, timeout=120)
+            download_result = ssh_manager.send_command(download_cmd, timeout=300)
             
             if not download_result.get('success'):
                 return {
@@ -753,7 +743,6 @@ class FileTransferManager:
                 # - Start with word characters, then @, then word chars, then :, then $
                 # - But preserve lines that are pure base64 content
                 if re.match(r'^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+:[^$]*\$$', line.strip()):
-                    logger.debug(f"Removing shell prompt line: {line[:50]}...")
                     continue
                 filtered_lines.append(line)
             
@@ -868,7 +857,6 @@ class FileTransferManager:
                 source_checksum = self.calculate_checksum(original_content)
             
             logger.info(f"Reverse shell upload: Starting upload of {len(original_content)} bytes to {remote_file}")
-            logger.info(f"Source checksum: {source_checksum}")
             
             # Upload content using reverse shell manager's direct method
             if encoding == "base64":
@@ -879,7 +867,7 @@ class FileTransferManager:
                 escaped_content = content.replace("'", "'\"'\"'").replace("\\", "\\\\")
                 upload_cmd = f"printf '%s' '{escaped_content}' > {remote_file}"
             
-            result = shell_manager.send_command(upload_cmd, timeout=120)
+            result = shell_manager.send_command(upload_cmd, timeout=300)
             
             if not result.get('success'):
                 return {
@@ -897,11 +885,24 @@ class FileTransferManager:
             
             target_checksum = None
             for verify_cmd in verify_commands:
-                verify_result = shell_manager.send_command(verify_cmd, timeout=30)
+                verify_result = shell_manager.send_command(verify_cmd, timeout=60)
                 if verify_result.get('success'):
                     checksum_output = verify_result.get('output', '').strip()
-                    if checksum_output and len(checksum_output) == 64:  # SHA256 length
-                        target_checksum = checksum_output
+                    
+                    # Parse reverse shell output to extract checksum
+                    # The output contains debug info and command echoes, we need to extract the actual checksum
+                    import re
+                    lines = checksum_output.split('\n')
+                    for line in lines:
+                        line = line.strip()
+                        # Look for a 64-character hex string (SHA256)
+                        checksum_match = re.search(r'([a-f0-9]{64})', line)
+                        if checksum_match:
+                            target_checksum = checksum_match.group(1)
+                            logger.info(f"Extracted checksum from reverse shell output: {target_checksum}")
+                            break
+                    
+                    if target_checksum and len(target_checksum) == 64:
                         break
             
             if not target_checksum:
@@ -962,11 +963,23 @@ class FileTransferManager:
             
             source_checksum = None
             for checksum_cmd in checksum_commands:
-                checksum_result = shell_manager.send_command(checksum_cmd, timeout=30)
+                checksum_result = shell_manager.send_command(checksum_cmd, timeout=60)
                 if checksum_result.get('success'):
                     checksum_output = checksum_result.get('output', '').strip()
-                    if checksum_output and len(checksum_output) == 64:  # SHA256 length
-                        source_checksum = checksum_output
+                    
+                    # Parse reverse shell output to extract checksum
+                    # The output contains debug info and command echoes, we need to extract the actual checksum
+                    import re
+                    lines = checksum_output.split('\n')
+                    for line in lines:
+                        line = line.strip()
+                        # Look for a 64-character hex string (SHA256)
+                        checksum_match = re.search(r'([a-f0-9]{64})', line)
+                        if checksum_match:
+                            source_checksum = checksum_match.group(1)
+                            break
+                    
+                    if source_checksum and len(source_checksum) == 64:
                         break
             
             if not source_checksum:
@@ -976,7 +989,6 @@ class FileTransferManager:
                 }
             
             logger.info(f"Reverse shell download: Starting download of {remote_file}")
-            logger.info(f"Source checksum from target: {source_checksum}")
             
             # Download content as base64 with error handling
             download_commands = [
@@ -987,7 +999,7 @@ class FileTransferManager:
             
             content_b64_raw = None
             for download_cmd in download_commands:
-                download_result = shell_manager.send_command(download_cmd, timeout=120)
+                download_result = shell_manager.send_command(download_cmd, timeout=300)
                 if download_result.get('success'):
                     output = download_result.get('output', '').strip()
                     if output and len(output) > 0:
@@ -1002,12 +1014,41 @@ class FileTransferManager:
             
             # Clean the base64 output for reverse shell environments
             import re
-            # Remove ANSI escape sequences and control characters
-            ansi_escape = re.compile(r'\x1b\[[0-9;]*[mGKHlh]|\x1b\[[?0-9;]*[lh]')
-            content_b64_clean = ansi_escape.sub('', content_b64_raw)
-            # Remove shell markers and keep only valid base64 characters
-            content_b64_clean = re.sub(r'SHELL_END_[a-f0-9]+', '', content_b64_clean)
-            content_b64_clean = re.sub(r'[^A-Za-z0-9+/=]', '', content_b64_clean)
+            
+            # Parse the command output to extract the actual base64 content
+            # The output from send_command contains debug markers and multiple lines
+            lines = content_b64_raw.split('\n')
+            base64_candidates = []
+            
+            for line in lines:
+                line = line.strip()
+                # Skip empty lines, shell prompts, and debug markers
+                if not line or line.endswith('$') or 'START_' in line or 'END_' in line:
+                    continue
+                # Skip the command echo itself
+                if line.startswith('base64 ') or line.startswith('openssl base64'):
+                    continue
+                # Look for lines that look like base64 content
+                if re.match(r'^[A-Za-z0-9+/]+={0,2}$', line) and len(line) > 10:
+                    base64_candidates.append(line)
+            
+            # If we found base64 candidates, join them
+            if base64_candidates:
+                content_b64_clean = ''.join(base64_candidates)
+            else:
+                # Fallback: clean the original output more carefully
+                # Remove ANSI escape sequences and control characters
+                ansi_escape = re.compile(r'\x1b\[[0-9;]*[mGKHlh]|\x1b\[[?0-9;]*[lh]')
+                content_b64_clean = ansi_escape.sub('', content_b64_raw)
+                # Remove shell markers and newlines, keep only valid base64 characters
+                content_b64_clean = re.sub(r'START_[a-f0-9]+|END_[a-f0-9]+', '', content_b64_clean)
+                content_b64_clean = re.sub(r'[^A-Za-z0-9+/=]', '', content_b64_clean)
+            
+            # Validate base64 padding
+            if len(content_b64_clean) % 4 != 0:
+                # Add padding if needed
+                padding_needed = 4 - (len(content_b64_clean) % 4)
+                content_b64_clean += '=' * padding_needed
             
             if not content_b64_clean:
                 return {
@@ -1019,6 +1060,7 @@ class FileTransferManager:
             try:
                 decoded_content = base64.b64decode(content_b64_clean)
                 target_checksum = self.calculate_checksum(decoded_content)
+                
             except Exception as e:
                 return {
                     "success": False,

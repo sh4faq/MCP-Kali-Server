@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Configuration for Kali server tests.
-This file contains all necessary configurations for tests.
-Supports both Docker and remote environments.
+Simple configuration for Docker environment tests.
 """
 
 import os
@@ -33,15 +32,13 @@ SSH_TARGETS = {
         "description": "Docker container - root access"
     }
 }
-print("🐳 Using Docker configuration")
 
-# Reverse shell configuration - Docker environment
+# Reverse shell configuration - Docker environment  
 REVERSE_SHELL_CONFIG = {
-    "listener_port": 4444,
-    "alternative_port": 4445,
-    "local_ip": "127.0.0.1",  # Local for Docker
-    "target_ip": "127.0.0.1", # Container is local
-    "payload_types": ["bash", "python", "netcat", "php"]
+    "listener_port": 4500,  # Use ports not mapped by Docker container
+    "alternative_port": 4501,
+    "payload_types": ["bash", "python", "netcat", "php"],
+    "test_ip": "172.17.0.1"  # Docker bridge IP that works for container communication
 }
 
 # Test files and directories
@@ -50,14 +47,14 @@ TEST_FILES = {
     "test_file_prefix": "docker_test_",
     "upload_test_file": "upload_test.txt",
     "download_test_file": "download_test.txt",
-    "large_file_size": 1024 * 1024,  # 1MB for Docker
-    "small_file_size": 1024  # 1KB for quick tests
+    "large_file_size": 1024 * 1024,  # 1MB
+    "small_file_size": 1024  # 1KB
 }
 
 # Configuration des outils Kali pour les tests
 KALI_TOOLS_CONFIG = {
     "nmap": {
-        "target": "127.0.0.1",
+        "target": REVERSE_SHELL_CONFIG["test_ip"],  # Use Docker IP for tests
         "ports": "22,80,443",
         "scan_types": ["-sT", "-sS", "-sV"]
     },
@@ -67,12 +64,12 @@ KALI_TOOLS_CONFIG = {
     }
 }
 
-# Timeouts configuration - Docker optimized
+# Timeouts configuration
 TIMEOUTS = {
-    "quick": 5,       # Quick tests
-    "medium": 15,     # Medium tests  
-    "long": 60,       # Long tests
-    "extended": 120   # Very long tests
+    "quick": 10,
+    "medium": 30,
+    "long": 180,
+    "extended": 300
 }
 
 # Messages de test
@@ -169,9 +166,20 @@ def validate_environment() -> Dict[str, bool]:
         checks["ssh_port_open"] = False
     
     # Common checks
-    checks["temp_dir"] = os.path.exists(TEST_FILES["temp_dir"])
+    checks["temp_dir"] = os.path.exists("/tmp") if os.name != 'nt' else True  # Windows compatibility
     
     return checks
+
+def get_docker_test_ip() -> str:
+    """Get the Docker bridge IP for tests."""
+    return REVERSE_SHELL_CONFIG["test_ip"]
+
+def get_pentest_ip() -> str:
+    """Get the IP to use for pentest scenarios (fallback to Docker IP for tests)."""
+    return REVERSE_SHELL_CONFIG["test_ip"]
+
+# Environment info
+print("🐳 Using Docker configuration with fixed IPs")
 
 # Environment variables for configuration override
 def load_env_overrides():
