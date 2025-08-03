@@ -132,7 +132,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
     # Will implement enhanced features on the Kali server side
     
     @mcp.tool()
-    def nmap_scan(target: str, scan_type: str = "-sV", ports: str = "", additional_args: str = "") -> Dict[str, Any]:
+    def tools_nmap(target: str, scan_type: str = "-sV", ports: str = "", additional_args: str = "") -> Dict[str, Any]:
         """
         Execute an Nmap scan against a target.
         
@@ -154,7 +154,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post("api/tools/nmap", data)
 
     @mcp.tool()
-    def gobuster_scan(url: str, mode: str = "dir", wordlist: str = "/usr/share/wordlists/dirb/common.txt", additional_args: str = "") -> Dict[str, Any]:
+    def tools_gobuster(url: str, mode: str = "dir", wordlist: str = "/usr/share/wordlists/dirb/common.txt", additional_args: str = "") -> Dict[str, Any]:
         """
         Execute Gobuster to find directories, DNS subdomains, or virtual hosts.
         
@@ -176,7 +176,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post("api/tools/gobuster", data)
 
     @mcp.tool()
-    def dirb_scan(url: str, wordlist: str = "/usr/share/wordlists/dirb/common.txt", additional_args: str = "") -> Dict[str, Any]:
+    def tools_dirb(url: str, wordlist: str = "/usr/share/wordlists/dirb/common.txt", additional_args: str = "") -> Dict[str, Any]:
         """
         Execute Dirb web content scanner.
         
@@ -196,7 +196,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post("api/tools/dirb", data)
 
     @mcp.tool()
-    def nikto_scan(target: str, additional_args: str = "") -> Dict[str, Any]:
+    def tools_nikto(target: str, additional_args: str = "") -> Dict[str, Any]:
         """
         Execute Nikto web server scanner.
         
@@ -214,7 +214,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post("api/tools/nikto", data)
 
     @mcp.tool()
-    def sqlmap_scan(url: str, data: str = "", additional_args: str = "") -> Dict[str, Any]:
+    def tools_sqlmap(url: str, data: str = "", additional_args: str = "") -> Dict[str, Any]:
         """
         Execute SQLmap SQL injection scanner.
         
@@ -234,7 +234,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post("api/tools/sqlmap", post_data)
 
     @mcp.tool()
-    def metasploit_run(module: str, options: Dict[str, Any] = {}) -> Dict[str, Any]:
+    def tools_metasploit(module: str, options: Dict[str, Any] = {}) -> Dict[str, Any]:
         """
         Execute a Metasploit module.
         
@@ -252,7 +252,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post("api/tools/metasploit", data)
 
     @mcp.tool()
-    def hydra_attack(
+    def tools_hydra(
         target: str, 
         service: str, 
         username: str = "", 
@@ -288,7 +288,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post("api/tools/hydra", data)
 
     @mcp.tool()
-    def run_john_crack(
+    def tools_john(
         hash_file: str, 
         wordlist: str = "", 
         format_type: str = "", 
@@ -315,7 +315,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post("api/tools/john", data)
 
     @mcp.tool()
-    def wpscan_analyze(url: str, additional_args: str = "") -> Dict[str, Any]:
+    def tools_wpscan(url: str, additional_args: str = "") -> Dict[str, Any]:
         """
         Execute WPScan WordPress vulnerability scanner.
         
@@ -333,7 +333,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post("api/tools/wpscan", data)
 
     @mcp.tool()
-    def enum4linux_scan(target: str, additional_args: str = "-a") -> Dict[str, Any]:
+    def tools_enum4linux(target: str, additional_args: str = "-a") -> Dict[str, Any]:
         """
         Execute Enum4linux Windows/Samba enumeration tool.
         
@@ -351,7 +351,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post("api/tools/enum4linux", data)
 
     @mcp.tool()
-    def server_health() -> Dict[str, Any]:
+    def health() -> Dict[str, Any]:
         """
         Check the health status of the Kali API server.
         
@@ -361,7 +361,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.check_health()
     
     @mcp.tool()
-    def execute_command(command: str) -> Dict[str, Any]:
+    def command(command: str) -> Dict[str, Any]:
         """
         Execute an arbitrary command on the Kali server.
         
@@ -375,7 +375,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
 
     # SSH Session Management Tools
     @mcp.tool()
-    def start_ssh_session(
+    def ssh_session_start(
         target: str, 
         username: str, 
         password: str = "", 
@@ -408,7 +408,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post("api/ssh/session/start", data)
 
     @mcp.tool()
-    def execute_ssh_command(session_id: str, command: str, timeout: int = 30) -> Dict[str, Any]:
+    def ssh_session_command(session_id: str, command: str, timeout: int = 30) -> Dict[str, Any]:
         """
         Execute a command in an active SSH session.
         
@@ -427,7 +427,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post(f"api/ssh/session/{session_id}/command", data)
 
     @mcp.tool()
-    def get_ssh_status(session_id: str = "") -> Dict[str, Any]:
+    def ssh_session_status(session_id: str = "") -> Dict[str, Any]:
         """
         Get the status of SSH sessions.
         
@@ -443,7 +443,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
             return kali_client.safe_get("api/ssh/sessions")
 
     @mcp.tool()
-    def stop_ssh_session(session_id: str) -> Dict[str, Any]:
+    def ssh_session_stop(session_id: str) -> Dict[str, Any]:
         """
         Stop an SSH session.
         
@@ -456,7 +456,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post(f"api/ssh/session/{session_id}/stop", {})
 
     @mcp.tool()
-    def list_ssh_sessions() -> Dict[str, Any]:
+    def ssh_sessions() -> Dict[str, Any]:
         """
         List all active SSH sessions with their details.
         
@@ -466,7 +466,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_get("api/ssh/sessions")
 
     @mcp.tool()
-    def ssh_upload_content(
+    def ssh_session_upload_content(
         session_id: str, 
         content: str, 
         remote_file: str, 
@@ -496,7 +496,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post(f"api/ssh/session/{session_id}/upload_content", data)
 
     @mcp.tool()
-    def ssh_download_content(
+    def ssh_session_download_content(
         session_id: str, 
         remote_file: str, 
         method: str = "auto", 
@@ -522,7 +522,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post(f"api/ssh/session/{session_id}/download_content", data)
 
     @mcp.tool()
-    def ssh_estimate_transfer_time(file_size_bytes: int, operation: str = "upload") -> Dict[str, Any]:
+    def ssh_estimate_transfer(file_size_bytes: int, operation: str = "upload") -> Dict[str, Any]:
         """
         Estimate SSH transfer time and get method recommendations for large files.
         
@@ -541,7 +541,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
 
     # Reverse Shell Management Tools
     @mcp.tool()
-    def start_reverse_shell_listener(port: int = 4444, session_id: str = "") -> Dict[str, Any]:
+    def reverse_shell_listener_start(port: int = 4444, session_id: str = "") -> Dict[str, Any]:
         """
         Start a reverse shell listener on the specified port.
         
@@ -556,10 +556,10 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
             "port": port,
             "session_id": session_id
         }
-        return kali_client.safe_post("api/shell/listener/start", data)
+        return kali_client.safe_post("api/reverse-shell/listener/start", data)
 
     @mcp.tool()
-    def execute_shell_command(session_id: str, command: str, timeout: int = 10) -> Dict[str, Any]:
+    def reverse_shell_command(session_id: str, command: str, timeout: int = 10) -> Dict[str, Any]:
         """
         Execute a command in an active reverse shell session.
         
@@ -575,10 +575,10 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
             "command": command,
             "timeout": timeout
         }
-        return kali_client.safe_post(f"api/shell/session/{session_id}/command", data)
+        return kali_client.safe_post(f"api/reverse-shell/{session_id}/command", data)
 
     @mcp.tool()
-    def get_shell_status(session_id: str = "") -> Dict[str, Any]:
+    def reverse_shell_status(session_id: str = "") -> Dict[str, Any]:
         """
         Get the status of reverse shell sessions.
         
@@ -589,12 +589,12 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
             Status information for reverse shell sessions
         """
         if session_id:
-            return kali_client.safe_get(f"api/shell/session/{session_id}/status")
+            return kali_client.safe_get(f"api/reverse-shell/{session_id}/status")
         else:
-            return kali_client.safe_get("api/shell/sessions")
+            return kali_client.safe_get("api/reverse-shell/sessions")
 
     @mcp.tool()
-    def stop_reverse_shell(session_id: str) -> Dict[str, Any]:
+    def reverse_shell_stop(session_id: str) -> Dict[str, Any]:
         """
         Stop a reverse shell session.
         
@@ -604,21 +604,21 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         Returns:
             Stop operation result
         """
-        return kali_client.safe_post(f"api/shell/session/{session_id}/stop", {})
+        return kali_client.safe_post(f"api/reverse-shell/{session_id}/stop", {})
 
     @mcp.tool()
-    def list_reverse_shell_sessions() -> Dict[str, Any]:
+    def reverse_shell_sessions() -> Dict[str, Any]:
         """
         List all active reverse shell sessions with their details.
         
         Returns:
             Dictionary containing all active sessions with their IDs, ports, connection status, and timestamps
         """
-        return kali_client.safe_get("api/shell/sessions")
+        return kali_client.safe_get("api/reverse-shell/sessions")
 
     # File Operations Tools
     @mcp.tool()
-    def upload_to_kali(content: str, remote_path: str, encoding: str = "base64") -> Dict[str, Any]:
+    def kali_upload(content: str, remote_path: str, encoding: str = "base64") -> Dict[str, Any]:
         """
         Upload content directly to the Kali server filesystem using robust chunking.
         
@@ -635,7 +635,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post("api/kali/upload", data)
 
     @mcp.tool()
-    def download_from_kali(remote_file: str, mode: str = "content", local_directory: str = "/tmp") -> Dict[str, Any]:
+    def kali_download(remote_file: str, mode: str = "content", local_directory: str = "/tmp") -> Dict[str, Any]:
         """
         Download a file from the Kali server filesystem.
         
@@ -655,7 +655,7 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_post("api/kali/download", data)
 
     @mcp.tool()
-    def reverse_shell_upload_file(
+    def target_upload_file(
         session_id: str, 
         local_file: str, 
         remote_file: str, 
@@ -703,10 +703,10 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
             "method": method,
             "encoding": encoding
         }
-        return kali_client.safe_post("api/target/upload_content", data)
+        return kali_client.safe_post(f"api/reverse-shell/{session_id}/upload-content", data)
 
     @mcp.tool()
-    def reverse_shell_download_file(
+    def target_download_file(
         session_id: str, 
         remote_file: str, 
         local_file: str, 
@@ -748,70 +748,52 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
             "remote_file": remote_file,
             "method": method
         }
-        return kali_client.safe_post("api/target/download_content", data)
+        return kali_client.safe_post(f"api/reverse-shell/{session_id}/download-content", data)
 
-    # Enhanced File Transfer Tools with Integrity Verification
+    # Additional missing tools from Kali server
     @mcp.tool()
-    def upload_to_kali(content: str, remote_path: str) -> Dict[str, Any]:
+    def reverse_shell_generate_payload(
+        local_ip: str, 
+        local_port: int = 4444, 
+        payload_type: str = "bash", 
+        encoding: str = "base64"
+    ) -> Dict[str, Any]:
         """
-        Upload content directly to Kali server with integrity verification using SHA256 checksums.
+        Generate reverse shell payloads that can be manually executed on targets.
+        
+        This generates various types of reverse shell commands that you can:
+        - Copy-paste into a compromised terminal
+        - Upload as a script file using file transfer functions
+        - Execute through other exploitation methods
+        - Use in social engineering attacks
         
         Args:
-            content: Base64 encoded content to upload
-            remote_path: Path where to store the file on Kali server
+            local_ip: Your local IP address that the target should connect back to
+            local_port: Local port to connect back to (default: 4444)
+            payload_type: Type of payload (bash, python, nc, php, powershell, perl)
+            encoding: Encoding format (plain, base64, url, hex)
             
         Returns:
-            Upload result with integrity verification details
+            Generated payload in various formats ready for manual execution
         """
         data = {
-            "content": content,
-            "remote_path": remote_path
+            "local_ip": local_ip,
+            "local_port": local_port,
+            "payload_type": payload_type,
+            "encoding": encoding
         }
-        return kali_client.safe_post("api/kali/upload", data)
+        return kali_client.safe_post("api/reverse-shell/generate-payload", data)
 
+    # Network and System Information Tools
     @mcp.tool()
-    def download_from_kali(file_path: str) -> Dict[str, Any]:
+    def system_network_info() -> Dict[str, Any]:
         """
-        Download files from Kali server with integrity verification using SHA256 checksums.
-        
-        Args:
-            file_path: Path to the file on Kali server to download
-            
-        Returns:
-            Download result with integrity verification details and base64 encoded content
-        """
-        data = {
-            "file_path": file_path
-        }
-        return kali_client.safe_post("api/kali/download", data)
-
-    @mcp.tool()
-    def get_transfer_performance_report() -> Dict[str, Any]:
-        """
-        Get comprehensive transfer performance statistics and analytics.
+        Get comprehensive network information for the Kali Linux system.
         
         Returns:
-            Performance report with transfer statistics, success rates, and throughput metrics
+            Network information including interfaces, IP addresses, routing table, etc.
         """
-        return kali_client.safe_get("api/transfer/performance")
-
-    @mcp.tool()
-    def estimate_transfer_time(content_size: int, method: str = "direct_kali") -> Dict[str, Any]:
-        """
-        Estimate transfer time for given content size and method with optimization recommendations.
-        
-        Args:
-            content_size: Size of content in bytes
-            method: Transfer method to analyze (direct_kali, ssh, reverse_shell)
-            
-        Returns:
-            Transfer time estimation with optimization recommendations
-        """
-        data = {
-            "content_size": content_size,
-            "method": method
-        }
-        return kali_client.safe_post("api/transfer/estimate", data)
+        return kali_client.safe_get("api/system/network-info")
 
     return mcp
 
