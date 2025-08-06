@@ -678,25 +678,25 @@ def setup_routes(app: Flask):
             logger.error(f"Error executing shell command: {str(e)}")
             return jsonify({"error": f"Server error: {str(e)}"}), 500
 
-    @app.route("/api/reverse-shell/<session_id>/trigger", methods=["POST"])
-    def trigger_shell_action(session_id):
-        """Trigger an arbitrary command in a non-blocking way (e.g., reverse shell payload)."""
+    @app.route("/api/reverse-shell/<session_id>/send-payload", methods=["POST"])
+    def send_shell_payload(session_id):
+        """Send a payload command in a non-blocking way (e.g., reverse shell payload)."""
         try:
             if session_id not in active_sessions:
                 return jsonify({"error": f"Session {session_id} not found"}), 404
             
             params = request.json
-            if not params or "trigger_command" not in params:
-                return jsonify({"error": "trigger_command parameter is required"}), 400
+            if not params or "payload_command" not in params:
+                return jsonify({"error": "payload_command parameter is required"}), 400
             
-            trigger_command = params["trigger_command"]
+            payload_command = params["payload_command"]
             timeout = params.get("timeout", 10)
             
             shell_manager = active_sessions[session_id]
-            result = shell_manager.trigger_action(trigger_command, timeout)
+            result = shell_manager.send_payload(payload_command, timeout)
             return jsonify(result)
         except Exception as e:
-            logger.error(f"Error triggering shell action: {str(e)}")
+            logger.error(f"Error sending shell payload: {str(e)}")
             return jsonify({"error": f"Server error: {str(e)}"}), 500
 
     @app.route("/api/reverse-shell/<session_id>/status", methods=["GET"])

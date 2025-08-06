@@ -899,23 +899,23 @@ class ReverseShellManager:
             logger.error(f"Error in reverse shell download: {str(e)}")
             return {"error": str(e), "success": False}
 
-    def trigger_action(self, trigger_command: str, timeout: int = 10) -> Dict[str, Any]:
+    def send_payload(self, payload_command: str, timeout: int = 10) -> Dict[str, Any]:
         """
-        Trigger an arbitrary command (e.g., reverse shell payload) in a non-blocking way.
+        Send a payload command (e.g., reverse shell payload) in a non-blocking way.
         The process is started in a background thread and associated with the session.
         
         Args:
-            trigger_command (str): The command to execute
+            payload_command (str): The payload command to execute
             timeout (int): Timeout for the command execution
             
         Returns:
             Dict[str, Any]: Result dictionary with success status and message
         """
-        def _run_trigger():
+        def _run_payload():
             try:
                 # Store the process so it can be terminated later
                 self.trigger_process = subprocess.Popen(
-                    trigger_command,
+                    payload_command,
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -923,34 +923,34 @@ class ReverseShellManager:
                 )
                 try:
                     stdout, stderr = self.trigger_process.communicate(timeout=timeout)
-                    logger.info(f"Trigger command completed. Exit code: {self.trigger_process.returncode}")
+                    logger.info(f"Payload command completed. Exit code: {self.trigger_process.returncode}")
                     if stdout:
-                        logger.debug(f"Trigger stdout: {stdout.decode()}")
+                        logger.debug(f"Payload stdout: {stdout.decode()}")
                     if stderr:
-                        logger.debug(f"Trigger stderr: {stderr.decode()}")
+                        logger.debug(f"Payload stderr: {stderr.decode()}")
                 except subprocess.TimeoutExpired:
-                    logger.warning(f"Trigger command timed out after {timeout} seconds")
+                    logger.warning(f"Payload command timed out after {timeout} seconds")
                     self.trigger_process.kill()
                     try:
                         stdout, stderr = self.trigger_process.communicate(timeout=5)
                     except subprocess.TimeoutExpired:
                         pass
             except Exception as e:
-                logger.error(f"Trigger action failed: {e}")
+                logger.error(f"Payload execution failed: {e}")
             finally:
                 # Clear the process reference when done
                 if hasattr(self, 'trigger_process'):
                     self.trigger_process = None
 
-        # Start the trigger in a background thread
-        self.trigger_thread = threading.Thread(target=_run_trigger, daemon=True)
+        # Start the payload in a background thread
+        self.trigger_thread = threading.Thread(target=_run_payload, daemon=True)
         self.trigger_thread.start()
 
-        logger.info(f"Triggered action: {trigger_command} (non-blocking)")
+        logger.info(f"Payload executed: {payload_command} (non-blocking)")
         return {
             "success": True,
-            "message": "Trigger command executed in background.",
-            "trigger_command": trigger_command,
+            "message": "Payload command executed in background.",
+            "payload_command": payload_command,
             "session_id": self.session_id
         }
 

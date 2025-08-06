@@ -13,6 +13,25 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - (No changes yet)
 
+## [0.2.1] - 2025-08-06
+
+### Added
+- **Improved Reverse Shell Payload API**: Renamed `/trigger` endpoint to `/send-payload` for better clarity
+  - More descriptive endpoint name that clearly indicates payload execution
+  - Updated MCP tool from `reverse_shell_trigger` to `reverse_shell_send_payload`
+  - Enhanced documentation and examples for non-blocking payload execution
+
+### Changed
+- **API Endpoint Naming**: `/api/reverse-shell/<session_id>/trigger` → `/api/reverse-shell/<session_id>/send-payload`
+- **Method Naming**: `trigger_action()` → `send_payload()` in ReverseShellManager
+- **Parameter Names**: `trigger_command` → `payload_command` for better semantic clarity
+- **Documentation**: Updated all documentation to reflect new endpoint naming
+- **Test Suite**: Updated test methods and descriptions to use new payload terminology
+
+### Fixed
+- **Server Blocking Issue**: Resolved issue where clients using generic `/api/command` for reverse shell payloads would block the server
+- **API Clarity**: Improved API naming to prevent confusion between regular commands and payload execution
+
 ## [0.2.0] - 2025-08-06
 
 ### Added

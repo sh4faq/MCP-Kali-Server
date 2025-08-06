@@ -65,7 +65,7 @@ flowchart LR
         T3[reverse_shell_status]
         T4[reverse_shell_stop]
         T5[reverse_shell_sessions]
-        T6[reverse_shell_trigger]
+        T6[reverse_shell_send_payload]
         T7[reverse_shell_upload_content]
         T8[reverse_shell_download_content]
         T9[reverse_shell_generate_payload]
@@ -77,7 +77,7 @@ flowchart LR
         A3["GET /api/reverse-shell/{id}/status"]
         A4["POST /api/reverse-shell/{id}/stop"]
         A5["GET /api/reverse-shell/sessions"]
-        A6["POST /api/reverse-shell/{id}/trigger"]
+        A6["POST /api/reverse-shell/{id}/send-payload"]
         A7["POST /api/reverse-shell/{id}/upload-content"]
         A8["POST /api/reverse-shell/{id}/download-content"]
         A9["POST /api/reverse-shell/generate-payload"]
@@ -160,7 +160,7 @@ classDiagram
         
         +start_listener()
         +execute_command()
-        +trigger_action()
+        +send_payload()
         +get_status()
         +stop_session()
     }
@@ -208,23 +208,23 @@ sequenceDiagram
     participant Client
     participant API
     participant Manager
-    participant TriggerThread
+    participant PayloadThread
     participant TargetSystem
     
-    Client->>+API: POST /api/reverse-shell/{id}/trigger
-    API->>+Manager: trigger_action(command)
+    Client->>+API: POST /api/reverse-shell/{id}/send-payload
+    API->>+Manager: send_payload(command)
     Manager->>Manager: Validate session exists
-    Manager->>+TriggerThread: Start daemon thread
-    TriggerThread->>Manager: Thread started
+    Manager->>+PayloadThread: Start daemon thread
+    PayloadThread->>Manager: Thread started
     Manager-->>-API: Immediate response
     API-->>-Client: Success (non-blocking)
     
     par Background Execution
-        TriggerThread->>+TargetSystem: Execute trigger command
-        Note over TriggerThread,TargetSystem: curl, wget, or custom command
+        PayloadThread->>+TargetSystem: Execute payload command
+        Note over PayloadThread,TargetSystem: curl, wget, or custom command
         TargetSystem->>TargetSystem: Process payload
         TargetSystem->>Manager: Establish reverse connection
-        TriggerThread-->>-Manager: Command completed
+        PayloadThread-->>-Manager: Command completed
     end
     
     Note over Manager: Session state updated<br/>when connection received
@@ -259,7 +259,7 @@ flowchart TD
     
     subgraph "Command Execution"
         CMD["POST /api/reverse-shell/{id}/command<br/>Execute Shell Command"]
-        TRIGGER["POST /api/reverse-shell/{id}/trigger<br/>🆕 Trigger Action"]
+        SEND_PAYLOAD["POST /api/reverse-shell/{id}/send-payload<br/>🆕 Send Payload"]
     end
     
     subgraph "File Operations"
@@ -551,7 +551,7 @@ flowchart TD
     end
     
     subgraph "Solutions"
-        S1[✅ Use trigger_action API<br/>Non-blocking execution]
+        S1[✅ Use send_payload API<br/>Non-blocking execution]
         S2[Check listener status<br/>Verify port availability]
         S3[Increase timeout values<br/>Check command validity]
         S4[Verify session ID<br/>Check session list]

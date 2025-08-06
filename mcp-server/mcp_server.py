@@ -617,27 +617,32 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_get("api/reverse-shell/sessions")
 
     @mcp.tool()
-    def reverse_shell_trigger(session_id: str, command: str = "whoami") -> Dict[str, Any]:
+    def reverse_shell_send_payload(session_id: str, payload_command: str, timeout: int = 10) -> Dict[str, Any]:
         """
-        Trigger a command in a reverse shell session to test connectivity and responsiveness.
+        Send a payload command to trigger a reverse shell connection in a non-blocking way.
         
-        This is a lightweight test function that executes a simple command in the reverse shell
-        to verify that the connection is active and responsive. It's useful for:
-        - Testing if a reverse shell session is still alive
-        - Verifying connectivity before executing complex operations
-        - Quick health checks of established sessions
+        This function is specifically designed for sending reverse shell payloads or other
+        commands that establish network connections back to the listener. It executes the
+        payload in a background thread to avoid blocking the server.
+        
+        Common use cases:
+        - Sending reverse shell payloads to compromised web applications
+        - Executing commands that establish network connections
+        - Triggering actions on remote systems without blocking the API
         
         Args:
-            session_id: The session ID of the reverse shell to trigger
-            command: The command to execute for testing (default: "whoami")
+            session_id: The session ID of the reverse shell listener
+            payload_command: The payload command to execute (e.g., curl with reverse shell)
+            timeout: Timeout for the payload execution in seconds (default: 10)
             
         Returns:
-            Dictionary containing the trigger test results and session status
+            Dictionary containing the payload execution status and session info
         """
         data = {
-            "command": command
+            "payload_command": payload_command,
+            "timeout": timeout
         }
-        return kali_client.safe_post(f"api/reverse-shell/{session_id}/trigger", data)
+        return kali_client.safe_post(f"api/reverse-shell/{session_id}/send-payload", data)
 
     # File Operations Tools
     @mcp.tool()
