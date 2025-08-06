@@ -2,6 +2,84 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- (No changes yet)
+
+### Changed
+- (No changes yet)
+
+### Fixed
+- (No changes yet)
+
+## [0.2.0] - 2025-08-06
+
+### Added
+- **Real-time Streaming Support**: Added streaming capabilities for long-running penetration testing tools
+  - Gobuster, Dirb, and Nikto now support real-time output streaming
+  - Server-Sent Events (SSE) implementation with `streaming=true` parameter
+  - Thread-based execution prevents endpoint blocking
+  - Queue-based output collection for thread-safe streaming
+  - Comprehensive error handling and connection recovery
+  - Backward compatibility maintained for existing clients
+- **Enhanced Tool Functions**: Updated tool functions to accept optional `on_output` callbacks
+  - `run_gobuster()`, `run_dirb()`, and `run_nikto()` now support streaming callbacks
+  - Default logging callbacks provided for non-streaming usage
+  - Consistent output formatting across all tools
+- **Automatic Working Directory Management**: Server now automatically manages a clean working directory
+  - Creates `tmp/` directory on startup if it doesn't exist in project root
+  - Graceful fallback to `~/.mcp-kali-server/tmp/` if permissions denied
+  - Sets working directory to prevent polluting the project repository
+  - Directory is completely ignored by git for clean repository management
+  - All file operations default to this directory unless absolute paths are used
+- **Comprehensive Documentation**: Added extensive documentation and examples
+  - `doc/STREAMING.md`: Complete streaming API documentation with client examples
+  - `examples/streaming_example.py`: Interactive demonstration script with menu system
+  - JavaScript and Python client implementation examples
+  - Troubleshooting guide and best practices
+  - Updated README with working directory and streaming information
+- **Enhanced Testing**: Added comprehensive unit tests for streaming functionality
+  - `tests/test_streaming.py`: Complete streaming test suite
+  - Mock-based testing for callback verification
+  - Command construction validation
+  - Backward compatibility testing
+
+### Changed
+- **API Endpoints**: Enhanced tool endpoints to support streaming
+  - Modified `/api/tools/gobuster`, `/api/tools/dirb`, and `/api/tools/nikto` endpoints
+  - Added required imports (`queue`, `threading`) for streaming support
+  - Consistent streaming response format across all endpoints
+  - Improved error handling with appropriate HTTP status codes
+- **Tool Configuration**: Refined automatic streaming behavior
+  - Removed nmap from automatic streaming tools list (streams only when explicitly requested)
+  - Maintains automatic streaming for directory enumeration tools (gobuster, dirb, etc.)
+  - Better balance between automation and user control
+- **Repository Management**: Improved git repository cleanliness
+  - Updated `.gitignore` to completely ignore temporary directories
+  - Automatic creation ensures directories are available when needed
+  - Supports both project-local and user-home fallback locations
+
+### Technical Improvements
+- **Streaming Protocol**: Robust Server-Sent Events implementation
+  - Event types: output, heartbeat, result, error, complete
+  - Real-time output delivery with connection keep-alive
+  - Automatic fallback to standard JSON for non-streaming requests
+- **Performance Optimizations**: Memory-efficient streaming
+  - No output buffering for real-time performance
+  - Thread-safe queue implementation
+  - Configurable timeout and heartbeat intervals
+- **Error Handling**: Enhanced error recovery and user feedback
+  - Permission-aware directory creation with automatic fallback
+  - Comprehensive logging for debugging and monitoring
+  - Graceful degradation when streaming is not available
+
+### Security
+- **Working Directory Isolation**: Enhanced security through directory management
+  - Prevents accidental pollution of project files
+  - Isolates operational artifacts from source code
+  - Maintains clean separation between temporary and permanent files
+
 ## [0.1.0] - 2025-07-31
 
 ### Added

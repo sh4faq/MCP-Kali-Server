@@ -202,6 +202,36 @@ python kali_server.py --port 8080
 python kali_server.py --test --debug --port 8080
 ```
 
+### Working Directory
+
+The Kali server automatically creates and uses a `tmp/` directory as its working directory to keep the project clean:
+
+- **Automatic Creation**: The `tmp/` directory is created automatically on startup if it doesn't exist
+- **Permission Handling**: If permission is denied in the project directory, falls back to `~/.mcp-kali-server/tmp/`
+- **Default Location**: All file operations (nmap output files, downloads, etc.) use this directory by default
+- **Git Ignored**: The entire `tmp/` directory is ignored by git, keeping the repository clean
+- **Absolute Paths**: You can still use absolute paths to save files anywhere on the system
+
+**Directory Priority:**
+1. `<project>/tmp/` (preferred)
+2. `~/.mcp-kali-server/tmp/` (fallback if permissions denied)
+
+**Examples:**
+```bash
+# These commands save files in the working directory:
+nmap -oN scan_results.txt 192.168.1.1
+wget http://example.com/file.txt
+
+# These commands use absolute paths:
+nmap -oN /home/user/scans/results.txt 192.168.1.1
+```
+
+**Benefits:**
+- Keeps the git repository clean from operational artifacts
+- Provides a dedicated space for scan results and temporary files
+- Handles permission issues gracefully with automatic fallback
+- Makes cleanup easier after testing sessions
+
 #### Test Mode Features
 
 When using the `--test` option, the server will:
