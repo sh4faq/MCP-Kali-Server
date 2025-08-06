@@ -691,9 +691,10 @@ def setup_routes(app: Flask):
             
             payload_command = params["payload_command"]
             timeout = params.get("timeout", 10)
+            wait_seconds = params.get("wait_seconds", 5)
             
             shell_manager = active_sessions[session_id]
-            result = shell_manager.send_payload(payload_command, timeout)
+            result = shell_manager.send_payload(payload_command, timeout, wait_seconds)
             return jsonify(result)
         except Exception as e:
             logger.error(f"Error sending shell payload: {str(e)}")

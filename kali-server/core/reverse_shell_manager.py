@@ -899,17 +899,19 @@ class ReverseShellManager:
             logger.error(f"Error in reverse shell download: {str(e)}")
             return {"error": str(e), "success": False}
 
-    def send_payload(self, payload_command: str, timeout: int = 10) -> Dict[str, Any]:
+    def send_payload(self, payload_command: str, timeout: int = 10, wait_seconds: int = 5) -> Dict[str, Any]:
         """
         Send a payload command (e.g., reverse shell payload) in a non-blocking way.
         The process is started in a background thread and associated with the session.
+        Waits a few seconds after execution and returns session status.
         
         Args:
             payload_command (str): The payload command to execute
             timeout (int): Timeout for the command execution
+            wait_seconds (int): Seconds to wait before checking session status
             
         Returns:
-            Dict[str, Any]: Result dictionary with success status and message
+            Dict[str, Any]: Result dictionary with success status, message, and session status
         """
         def _run_payload():
             try:
@@ -947,11 +949,18 @@ class ReverseShellManager:
         self.trigger_thread.start()
 
         logger.info(f"Payload executed: {payload_command} (non-blocking)")
+        
+        # Wait a few seconds before checking session status
+        time.sleep(wait_seconds)
+        session_status = self.get_status()
+        
         return {
             "success": True,
             "message": "Payload command executed in background.",
             "payload_command": payload_command,
-            "session_id": self.session_id
+            "session_id": self.session_id,
+            "session_status": session_status,
+            "wait_time_seconds": wait_seconds
         }
 
     @staticmethod

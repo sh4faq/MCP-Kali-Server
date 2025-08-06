@@ -617,13 +617,16 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         return kali_client.safe_get("api/reverse-shell/sessions")
 
     @mcp.tool()
-    def reverse_shell_send_payload(session_id: str, payload_command: str, timeout: int = 10) -> Dict[str, Any]:
+    def reverse_shell_send_payload(session_id: str, payload_command: str, timeout: int = 10, wait_seconds: int = 5) -> Dict[str, Any]:
         """
         Send a payload command to trigger a reverse shell connection in a non-blocking way.
         
         This function is specifically designed for sending reverse shell payloads or other
         commands that establish network connections back to the listener. It executes the
         payload in a background thread to avoid blocking the server.
+        
+        Waits a few seconds after execution and returns session status to verify if the
+        reverse shell connection was established.
         
         Common use cases:
         - Sending reverse shell payloads to compromised web applications
@@ -634,13 +637,15 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
             session_id: The session ID of the reverse shell listener
             payload_command: The payload command to execute (e.g., curl with reverse shell)
             timeout: Timeout for the payload execution in seconds (default: 10)
+            wait_seconds: Seconds to wait before checking session status (default: 5)
             
         Returns:
             Dictionary containing the payload execution status and session info
         """
         data = {
             "payload_command": payload_command,
-            "timeout": timeout
+            "timeout": timeout,
+            "wait_seconds": wait_seconds
         }
         return kali_client.safe_post(f"api/reverse-shell/{session_id}/send-payload", data)
 
