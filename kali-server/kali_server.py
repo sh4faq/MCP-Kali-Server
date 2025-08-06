@@ -75,6 +75,30 @@ def parse_args():
 
 def main():
     """Main entry point for the application."""
+    # Setup working directory in tmp to avoid polluting git repository
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    tmp_dir = os.path.join(project_root, "tmp")
+    
+    # Create tmp directory if it doesn't exist, fallback to user home if permission denied
+    if not os.path.exists(tmp_dir):
+        try:
+            os.makedirs(tmp_dir)
+            logger.info(f"📁 Created temporary working directory: {tmp_dir}")
+        except PermissionError:
+            # Fallback to user home directory
+            import tempfile
+            user_tmp_dir = os.path.join(os.path.expanduser("~"), ".mcp-kali-server", "tmp")
+            logger.warning(f"⚠️  Permission denied creating {tmp_dir}")
+            logger.info(f"📁 Using fallback directory: {user_tmp_dir}")
+            if not os.path.exists(user_tmp_dir):
+                os.makedirs(user_tmp_dir, exist_ok=True)
+            tmp_dir = user_tmp_dir
+    
+    # Change to tmp directory
+    os.chdir(tmp_dir)
+    logger.info(f"📂 Working directory set to: {os.getcwd()}")
+    logger.info("💡 All file operations will use this directory unless absolute paths are specified")
+    
     # Parse command line arguments
     args = parse_args()
     
