@@ -75,6 +75,7 @@ mcp-server/
 - **Reverse Shell Manager**: Multi-session reverse shell handling
   - `start_reverse_shell_listener`: Start listening for reverse shells
   - `execute_shell_command`: Execute commands in reverse shells
+  - `trigger_reverse_shell_action`: Non-blocking trigger execution for payloads
   - `get_shell_status`: Monitor reverse shell session status
   - `stop_reverse_shell`: Terminate reverse shell sessions
   - `list_reverse_shell_sessions`: View all active reverse shell sessions

