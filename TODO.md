@@ -74,6 +74,18 @@ This document outlines planned improvements and features for the MCP Kali Server
   - Create session templates and automation
   - Add session export/import functionality
 
+- [ ] **Framework Migration**
+  - Replace Flask with FastAPI for improved performance and modern features
+  - Refactor existing endpoints to FastAPI syntax
+  - Add dependency injection support using FastAPI features
+  - Update API documentation to reflect the migration
+
+- [ ] **Bidirectional Communication**
+  - Replace Server-Sent Events (SSE) with WebSockets for real-time bidirectional communication
+  - Implement WebSocket connection handling
+  - Add authentication and authorization for WebSocket connections
+  - Create examples and documentation for WebSocket usage
+
 ### User Experience
 
 - [ ] **Web Interface**

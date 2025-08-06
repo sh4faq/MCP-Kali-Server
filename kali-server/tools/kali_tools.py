@@ -6,7 +6,7 @@ import traceback
 from typing import Dict, Any
 from flask import request, jsonify
 from core.config import logger
-from core.reverse_shell_manager import execute_command
+from core.command_executor import execute_command
 
 
 def run_nmap(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -45,7 +45,7 @@ def run_nmap(params: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-def run_gobuster(params: Dict[str, Any]) -> Dict[str, Any]:
+def run_gobuster(params: Dict[str, Any], on_output=None) -> Dict[str, Any]:
     """Execute gobuster with the provided parameters."""
     try:
         url = params.get("url", "")
@@ -73,7 +73,15 @@ def run_gobuster(params: Dict[str, Any]) -> Dict[str, Any]:
         if additional_args:
             command += f" {additional_args}"
         
-        result = execute_command(command)
+        # Use provided callback or default logging callback
+        output_callback = on_output
+        if not output_callback:
+            def handle_gobuster_output(source, line):
+                logger.info(f"[GOBUSTER-{source.upper()}] {line}")
+            output_callback = handle_gobuster_output
+        
+        # Execute with streaming support (gobuster will be detected as a streaming tool)
+        result = execute_command(command, on_output=output_callback)
         return result
     except Exception as e:
         logger.error(f"Error in gobuster: {str(e)}")
@@ -84,7 +92,7 @@ def run_gobuster(params: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-def run_dirb(params: Dict[str, Any]) -> Dict[str, Any]:
+def run_dirb(params: Dict[str, Any], on_output=None) -> Dict[str, Any]:
     """Execute dirb with the provided parameters."""
     try:
         url = params.get("url", "")
@@ -103,7 +111,14 @@ def run_dirb(params: Dict[str, Any]) -> Dict[str, Any]:
         if additional_args:
             command += f" {additional_args}"
         
-        result = execute_command(command)
+        # Use provided callback or default logging callback
+        output_callback = on_output
+        if not output_callback:
+            def handle_dirb_output(source, line):
+                logger.info(f"[DIRB-{source.upper()}] {line}")
+            output_callback = handle_dirb_output
+        
+        result = execute_command(command, on_output=output_callback)
         return result
     except Exception as e:
         logger.error(f"Error in dirb: {str(e)}")
@@ -114,7 +129,7 @@ def run_dirb(params: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-def run_nikto(params: Dict[str, Any]) -> Dict[str, Any]:
+def run_nikto(params: Dict[str, Any], on_output=None) -> Dict[str, Any]:
     """Execute nikto with the provided parameters."""
     try:
         target = params.get("target", "")
@@ -132,7 +147,14 @@ def run_nikto(params: Dict[str, Any]) -> Dict[str, Any]:
         if additional_args:
             command += f" {additional_args}"
         
-        result = execute_command(command)
+        # Use provided callback or default logging callback
+        output_callback = on_output
+        if not output_callback:
+            def handle_nikto_output(source, line):
+                logger.info(f"[NIKTO-{source.upper()}] {line}")
+            output_callback = handle_nikto_output
+        
+        result = execute_command(command, on_output=output_callback)
         return result
     except Exception as e:
         logger.error(f"Error in nikto: {str(e)}")

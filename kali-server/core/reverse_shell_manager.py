@@ -32,6 +32,9 @@ class ReverseShellManager:
         self.listener_thread = None
         self.output_buffer = []
         self.max_buffer_size = 1000
+        # Trigger management attributes
+        self.trigger_process = None
+        self.trigger_thread = None
         
     def _is_port_in_use(self, port: int) -> bool:
         """Check if a port is already in use using multiple validation methods"""
@@ -810,6 +813,33 @@ class ReverseShellManager:
         except Exception as e:
             logger.error(f"Error stopping reverse shell: {str(e)}")
         
+        # Stop the trigger process if running
+        try:
+            if hasattr(self, "trigger_process") and self.trigger_process:
+                try:
+                    logger.info(f"Stopping trigger process (PID: {self.trigger_process.pid})")
+                    self.trigger_process.terminate()
+                    try:
+                        self.trigger_process.wait(timeout=3)
+                        logger.info("Trigger process terminated gracefully")
+                    except subprocess.TimeoutExpired:
+                        logger.warning("Trigger process didn't terminate gracefully, forcing kill")
+                        self.trigger_process.kill()
+                        self.trigger_process.wait(timeout=2)
+                except (ProcessLookupError, OSError) as e:
+                    logger.info(f"Trigger process already terminated: {e}")
+                except Exception as e:
+                    logger.error(f"Error stopping trigger process: {e}")
+                finally:
+                    self.trigger_process = None
+
+            # Note: trigger_thread will be cleaned up automatically as it's a daemon thread
+            if hasattr(self, "trigger_thread") and self.trigger_thread and self.trigger_thread.is_alive():
+                logger.info("Trigger thread is running and will be cleaned up automatically (daemon thread)")
+                
+        except Exception as e:
+            logger.error(f"Error during trigger cleanup: {e}")
+        
         # Always reset connection state regardless of process cleanup success
         self.is_connected = False
         logger.info("Reverse shell session stopped")
@@ -869,6 +899,61 @@ class ReverseShellManager:
             logger.error(f"Error in reverse shell download: {str(e)}")
             return {"error": str(e), "success": False}
 
+    def trigger_action(self, trigger_command: str, timeout: int = 10) -> Dict[str, Any]:
+        """
+        Trigger an arbitrary command (e.g., reverse shell payload) in a non-blocking way.
+        The process is started in a background thread and associated with the session.
+        
+        Args:
+            trigger_command (str): The command to execute
+            timeout (int): Timeout for the command execution
+            
+        Returns:
+            Dict[str, Any]: Result dictionary with success status and message
+        """
+        def _run_trigger():
+            try:
+                # Store the process so it can be terminated later
+                self.trigger_process = subprocess.Popen(
+                    trigger_command,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    preexec_fn=os.setsid
+                )
+                try:
+                    stdout, stderr = self.trigger_process.communicate(timeout=timeout)
+                    logger.info(f"Trigger command completed. Exit code: {self.trigger_process.returncode}")
+                    if stdout:
+                        logger.debug(f"Trigger stdout: {stdout.decode()}")
+                    if stderr:
+                        logger.debug(f"Trigger stderr: {stderr.decode()}")
+                except subprocess.TimeoutExpired:
+                    logger.warning(f"Trigger command timed out after {timeout} seconds")
+                    self.trigger_process.kill()
+                    try:
+                        stdout, stderr = self.trigger_process.communicate(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        pass
+            except Exception as e:
+                logger.error(f"Trigger action failed: {e}")
+            finally:
+                # Clear the process reference when done
+                if hasattr(self, 'trigger_process'):
+                    self.trigger_process = None
+
+        # Start the trigger in a background thread
+        self.trigger_thread = threading.Thread(target=_run_trigger, daemon=True)
+        self.trigger_thread.start()
+
+        logger.info(f"Triggered action: {trigger_command} (non-blocking)")
+        return {
+            "success": True,
+            "message": "Trigger command executed in background.",
+            "trigger_command": trigger_command,
+            "session_id": self.session_id
+        }
+
     @staticmethod
     def generate_payload(local_ip: str = "127.0.0.1", local_port: int = 4444, 
                         payload_type: str = "bash", encoding: str = "base64") -> Dict[str, Any]:
@@ -911,110 +996,3 @@ class ReverseShellManager:
         except Exception as e:
             logger.error(f"Error generating reverse shell payload: {str(e)}")
             return {"success": False, "error": f"Failed to generate payload: {str(e)}"}
-
-
-class CommandExecutor:
-    """Class to handle command execution with better timeout management"""
-    
-    def __init__(self, command: str, timeout: int = COMMAND_TIMEOUT):
-        self.command = command
-        self.timeout = timeout
-        self.process = None
-        self.stdout_data = ""
-        self.stderr_data = ""
-        self.stdout_thread = None
-        self.stderr_thread = None
-        self.return_code = None
-        self.timed_out = False
-    
-    def _read_stdout(self):
-        """Thread function to continuously read stdout"""
-        for line in iter(self.process.stdout.readline, ''):
-            self.stdout_data += line
-    
-    def _read_stderr(self):
-        """Thread function to continuously read stderr"""
-        for line in iter(self.process.stderr.readline, ''):
-            self.stderr_data += line
-    
-    def execute(self) -> Dict[str, Any]:
-        """Execute the command and handle timeout gracefully"""
-        logger.info(f"Executing command: {self.command}")
-        
-        try:
-            self.process = subprocess.Popen(
-                self.command,
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1  # Line buffered
-            )
-            
-            # Start threads to read output continuously
-            self.stdout_thread = threading.Thread(target=self._read_stdout)
-            self.stderr_thread = threading.Thread(target=self._read_stderr)
-            self.stdout_thread.daemon = True
-            self.stderr_thread.daemon = True
-            self.stdout_thread.start()
-            self.stderr_thread.start()
-            
-            # Wait for the process to complete or timeout
-            try:
-                self.return_code = self.process.wait(timeout=self.timeout)
-                # Process completed, join the threads
-                self.stdout_thread.join()
-                self.stderr_thread.join()
-            except subprocess.TimeoutExpired:
-                # Process timed out but we might have partial results
-                self.timed_out = True
-                logger.warning(f"Command timed out after {self.timeout} seconds. Terminating process.")
-                
-                # Try to terminate gracefully first
-                self.process.terminate()
-                try:
-                    self.process.wait(timeout=5)  # Give it 5 seconds to terminate
-                except subprocess.TimeoutExpired:
-                    # Force kill if it doesn't terminate
-                    logger.warning("Process not responding to termination. Killing.")
-                    self.process.kill()
-                
-                # Update final output
-                self.return_code = -1
-            
-            # Always consider it a success if we have output, even with timeout
-            success = True if self.timed_out and (self.stdout_data or self.stderr_data) else (self.return_code == 0)
-            
-            return {
-                "stdout": self.stdout_data,
-                "stderr": self.stderr_data,
-                "return_code": self.return_code,
-                "success": success,
-                "timed_out": self.timed_out,
-                "partial_results": self.timed_out and (self.stdout_data or self.stderr_data)
-            }
-        
-        except Exception as e:
-            logger.error(f"Error executing command: {str(e)}")
-            return {
-                "stdout": self.stdout_data,
-                "stderr": f"Error executing command: {str(e)}\n{self.stderr_data}",
-                "return_code": -1,
-                "success": False,
-                "timed_out": False,
-                "partial_results": bool(self.stdout_data or self.stderr_data)
-            }
-
-
-def execute_command(command: str) -> Dict[str, Any]:
-    """
-    Execute a shell command and return the result
-    
-    Args:
-        command: The command to execute
-        
-    Returns:
-        A dictionary containing the stdout, stderr, and return code
-    """
-    executor = CommandExecutor(command)
-    return executor.execute()

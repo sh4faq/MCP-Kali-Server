@@ -616,6 +616,29 @@ def setup_mcp_server(kali_client: KaliToolsClient) -> FastMCP:
         """
         return kali_client.safe_get("api/reverse-shell/sessions")
 
+    @mcp.tool()
+    def reverse_shell_trigger(session_id: str, command: str = "whoami") -> Dict[str, Any]:
+        """
+        Trigger a command in a reverse shell session to test connectivity and responsiveness.
+        
+        This is a lightweight test function that executes a simple command in the reverse shell
+        to verify that the connection is active and responsive. It's useful for:
+        - Testing if a reverse shell session is still alive
+        - Verifying connectivity before executing complex operations
+        - Quick health checks of established sessions
+        
+        Args:
+            session_id: The session ID of the reverse shell to trigger
+            command: The command to execute for testing (default: "whoami")
+            
+        Returns:
+            Dictionary containing the trigger test results and session status
+        """
+        data = {
+            "command": command
+        }
+        return kali_client.safe_post(f"api/reverse-shell/{session_id}/trigger", data)
+
     # File Operations Tools
     @mcp.tool()
     def kali_upload(content: str, remote_path: str, encoding: str = "base64") -> Dict[str, Any]:
