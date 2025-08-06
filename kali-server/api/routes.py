@@ -4,10 +4,13 @@
 import os
 import base64
 import traceback
-from flask import Flask, request, jsonify
+import queue
+import threading
+from flask import Flask, request, jsonify, Response, stream_with_context
 from core.config import logger, active_sessions, active_ssh_sessions, VERSION
 from core.ssh_manager import SSHSessionManager
-from core.reverse_shell_manager import ReverseShellManager, execute_command
+from core.reverse_shell_manager import ReverseShellManager
+from core.command_executor import execute_command
 from tools.kali_tools import (
     run_nmap, run_gobuster, run_dirb, run_nikto, run_sqlmap,
     run_metasploit, run_hydra, run_john, run_wpscan, run_enum4linux
@@ -43,7 +46,7 @@ def setup_routes(app: Flask):
     # Command execution
     @app.route("/api/command", methods=["POST"])
     def command():
-        """Execute an arbitrary command on the Kali server."""
+        """Execute an arbitrary command on the Kali server with streaming support."""
         try:
             params = request.json
             if not params or "command" not in params:
@@ -52,8 +55,75 @@ def setup_routes(app: Flask):
                 }), 400
             
             command = params["command"]
-            result = execute_command(command)
-            return jsonify(result)
+            streaming = params.get("streaming", False)
+            
+            # Check if streaming is requested or auto-detect
+            from core.tool_config import is_streaming_tool
+            tool_name = command.split()[0] if command.strip() else ""
+            should_stream = streaming or is_streaming_tool(tool_name)
+            
+            if should_stream:
+                # Stream the output in real-time
+                import queue
+                import threading
+                
+                output_queue = queue.Queue()
+                
+                def generate_output():
+                    def handle_output(source, line):
+                        output_queue.put(f"data: {{\"type\": \"output\", \"source\": \"{source}\", \"line\": \"{line.replace('\"', '\\\"')}\"}}\n\n")
+                    
+                    # Execute command in separate thread
+                    result_container = {}
+                    
+                    def execute_in_thread():
+                        try:
+                            result = execute_command(command, on_output=handle_output)
+                            result_container['result'] = result
+                        except Exception as e:
+                            result_container['error'] = str(e)
+                        finally:
+                            output_queue.put("DONE")
+                    
+                    thread = threading.Thread(target=execute_in_thread)
+                    thread.start()
+                    
+                    # Yield outputs as they come
+                    while True:
+                        try:
+                            item = output_queue.get(timeout=1)
+                            if item == "DONE":
+                                break
+                            yield item
+                        except queue.Empty:
+                            yield "data: {\"type\": \"heartbeat\"}\n\n"
+                            continue
+                    
+                    # Wait for thread to complete
+                    thread.join()
+                    
+                    # Send final result
+                    if 'result' in result_container:
+                        result = result_container['result']
+                        yield f"data: {{\"type\": \"result\", \"success\": {str(result['success']).lower()}, \"return_code\": {result['return_code']}, \"timed_out\": {str(result.get('timed_out', False)).lower()}}}\n\n"
+                    elif 'error' in result_container:
+                        yield f"data: {{\"type\": \"error\", \"message\": \"Server error: {result_container['error']}\"}}\n\n"
+                    
+                    yield f"data: {{\"type\": \"complete\"}}\n\n"
+                
+                return Response(
+                    stream_with_context(generate_output()),
+                    content_type="text/plain; charset=utf-8",
+                    headers={
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive"
+                    }
+                )
+            else:
+                # Non-streaming execution
+                result = execute_command(command)
+                return jsonify(result)
+                
         except Exception as e:
             logger.error(f"Error in command endpoint: {str(e)}")
             return jsonify({
@@ -75,8 +145,64 @@ def setup_routes(app: Flask):
     def gobuster():
         try:
             params = request.json or {}
-            result = run_gobuster(params)
-            return jsonify(result)
+            streaming = params.get("streaming", False)
+            
+            if streaming:
+                output_queue = queue.Queue()
+                
+                def generate_output():
+                    def handle_output(source, line):
+                        output_queue.put(f"data: {{\"type\": \"output\", \"source\": \"{source}\", \"line\": \"{line.replace('\"', '\\\"')}\"}}\n\n")
+                    
+                    # Execute command in separate thread
+                    result_container = {}
+                    
+                    def execute_in_thread():
+                        try:
+                            result = run_gobuster(params, on_output=handle_output)
+                            result_container['result'] = result
+                        except Exception as e:
+                            result_container['error'] = str(e)
+                        finally:
+                            output_queue.put("DONE")
+                    
+                    thread = threading.Thread(target=execute_in_thread)
+                    thread.start()
+                    
+                    # Yield outputs as they come
+                    while True:
+                        try:
+                            item = output_queue.get(timeout=1)
+                            if item == "DONE":
+                                break
+                            yield item
+                        except queue.Empty:
+                            yield "data: {\"type\": \"heartbeat\"}\n\n"
+                            continue
+                    
+                    # Wait for thread to complete
+                    thread.join()
+                    
+                    # Send final result
+                    if 'result' in result_container:
+                        result = result_container['result']
+                        yield f"data: {{\"type\": \"result\", \"success\": {str(result['success']).lower()}, \"return_code\": {result.get('return_code', 0)}}}\n\n"
+                    elif 'error' in result_container:
+                        yield f"data: {{\"type\": \"error\", \"message\": \"Server error: {result_container['error']}\"}}\n\n"
+                    
+                    yield f"data: {{\"type\": \"complete\"}}\n\n"
+                
+                return Response(
+                    stream_with_context(generate_output()),
+                    content_type="text/plain; charset=utf-8",
+                    headers={
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive"
+                    }
+                )
+            else:
+                result = run_gobuster(params)
+                return jsonify(result)
         except Exception as e:
             logger.error(f"Error in gobuster endpoint: {str(e)}")
             return jsonify({"error": f"Server error: {str(e)}"}), 500
@@ -85,8 +211,64 @@ def setup_routes(app: Flask):
     def dirb():
         try:
             params = request.json or {}
-            result = run_dirb(params)
-            return jsonify(result)
+            streaming = params.get("streaming", False)
+            
+            if streaming:
+                output_queue = queue.Queue()
+                
+                def generate_output():
+                    def handle_output(source, line):
+                        output_queue.put(f"data: {{\"type\": \"output\", \"source\": \"{source}\", \"line\": \"{line.replace('\"', '\\\"')}\"}}\n\n")
+                    
+                    # Execute command in separate thread
+                    result_container = {}
+                    
+                    def execute_in_thread():
+                        try:
+                            result = run_dirb(params, on_output=handle_output)
+                            result_container['result'] = result
+                        except Exception as e:
+                            result_container['error'] = str(e)
+                        finally:
+                            output_queue.put("DONE")
+                    
+                    thread = threading.Thread(target=execute_in_thread)
+                    thread.start()
+                    
+                    # Yield outputs as they come
+                    while True:
+                        try:
+                            item = output_queue.get(timeout=1)
+                            if item == "DONE":
+                                break
+                            yield item
+                        except queue.Empty:
+                            yield "data: {\"type\": \"heartbeat\"}\n\n"
+                            continue
+                    
+                    # Wait for thread to complete
+                    thread.join()
+                    
+                    # Send final result
+                    if 'result' in result_container:
+                        result = result_container['result']
+                        yield f"data: {{\"type\": \"result\", \"success\": {str(result['success']).lower()}, \"return_code\": {result.get('return_code', 0)}}}\n\n"
+                    elif 'error' in result_container:
+                        yield f"data: {{\"type\": \"error\", \"message\": \"Server error: {result_container['error']}\"}}\n\n"
+                    
+                    yield f"data: {{\"type\": \"complete\"}}\n\n"
+                
+                return Response(
+                    stream_with_context(generate_output()),
+                    content_type="text/plain; charset=utf-8",
+                    headers={
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive"
+                    }
+                )
+            else:
+                result = run_dirb(params)
+                return jsonify(result)
         except Exception as e:
             logger.error(f"Error in dirb endpoint: {str(e)}")
             return jsonify({"error": f"Server error: {str(e)}"}), 500
@@ -95,8 +277,64 @@ def setup_routes(app: Flask):
     def nikto():
         try:
             params = request.json or {}
-            result = run_nikto(params)
-            return jsonify(result)
+            streaming = params.get("streaming", False)
+            
+            if streaming:
+                output_queue = queue.Queue()
+                
+                def generate_output():
+                    def handle_output(source, line):
+                        output_queue.put(f"data: {{\"type\": \"output\", \"source\": \"{source}\", \"line\": \"{line.replace('\"', '\\\"')}\"}}\n\n")
+                    
+                    # Execute command in separate thread
+                    result_container = {}
+                    
+                    def execute_in_thread():
+                        try:
+                            result = run_nikto(params, on_output=handle_output)
+                            result_container['result'] = result
+                        except Exception as e:
+                            result_container['error'] = str(e)
+                        finally:
+                            output_queue.put("DONE")
+                    
+                    thread = threading.Thread(target=execute_in_thread)
+                    thread.start()
+                    
+                    # Yield outputs as they come
+                    while True:
+                        try:
+                            item = output_queue.get(timeout=1)
+                            if item == "DONE":
+                                break
+                            yield item
+                        except queue.Empty:
+                            yield "data: {\"type\": \"heartbeat\"}\n\n"
+                            continue
+                    
+                    # Wait for thread to complete
+                    thread.join()
+                    
+                    # Send final result
+                    if 'result' in result_container:
+                        result = result_container['result']
+                        yield f"data: {{\"type\": \"result\", \"success\": {str(result['success']).lower()}, \"return_code\": {result.get('return_code', 0)}}}\n\n"
+                    elif 'error' in result_container:
+                        yield f"data: {{\"type\": \"error\", \"message\": \"Server error: {result_container['error']}\"}}\n\n"
+                    
+                    yield f"data: {{\"type\": \"complete\"}}\n\n"
+                
+                return Response(
+                    stream_with_context(generate_output()),
+                    content_type="text/plain; charset=utf-8",
+                    headers={
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive"
+                    }
+                )
+            else:
+                result = run_nikto(params)
+                return jsonify(result)
         except Exception as e:
             logger.error(f"Error in nikto endpoint: {str(e)}")
             return jsonify({"error": f"Server error: {str(e)}"}), 500
