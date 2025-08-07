@@ -7,10 +7,10 @@ import traceback
 import queue
 import threading
 from flask import Flask, request, jsonify, Response, stream_with_context
-from core.config import logger, active_sessions, active_ssh_sessions, VERSION
+from core.config import logger, active_sessions, active_ssh_sessions, VERSION, BLOCKING_TIMEOUT
 from core.ssh_manager import SSHSessionManager
 from core.reverse_shell_manager import ReverseShellManager
-from core.command_executor import execute_command
+from core.command_executor import execute_command, stream_command_execution
 from tools.kali_tools import (
     run_nmap, run_gobuster, run_dirb, run_nikto, run_sqlmap,
     run_metasploit, run_hydra, run_john, run_wpscan, run_enum4linux
@@ -64,55 +64,8 @@ def setup_routes(app: Flask):
             
             if should_stream:
                 # Stream the output in real-time
-                import queue
-                import threading
-                
-                output_queue = queue.Queue()
-                
-                def generate_output():
-                    def handle_output(source, line):
-                        output_queue.put(f"data: {{\"type\": \"output\", \"source\": \"{source}\", \"line\": \"{line.replace('\"', '\\\"')}\"}}\n\n")
-                    
-                    # Execute command in separate thread
-                    result_container = {}
-                    
-                    def execute_in_thread():
-                        try:
-                            result = execute_command(command, on_output=handle_output)
-                            result_container['result'] = result
-                        except Exception as e:
-                            result_container['error'] = str(e)
-                        finally:
-                            output_queue.put("DONE")
-                    
-                    thread = threading.Thread(target=execute_in_thread)
-                    thread.start()
-                    
-                    # Yield outputs as they come
-                    while True:
-                        try:
-                            item = output_queue.get(timeout=1)
-                            if item == "DONE":
-                                break
-                            yield item
-                        except queue.Empty:
-                            yield "data: {\"type\": \"heartbeat\"}\n\n"
-                            continue
-                    
-                    # Wait for thread to complete
-                    thread.join()
-                    
-                    # Send final result
-                    if 'result' in result_container:
-                        result = result_container['result']
-                        yield f"data: {{\"type\": \"result\", \"success\": {str(result['success']).lower()}, \"return_code\": {result['return_code']}, \"timed_out\": {str(result.get('timed_out', False)).lower()}}}\n\n"
-                    elif 'error' in result_container:
-                        yield f"data: {{\"type\": \"error\", \"message\": \"Server error: {result_container['error']}\"}}\n\n"
-                    
-                    yield f"data: {{\"type\": \"complete\"}}\n\n"
-                
                 return Response(
-                    stream_with_context(generate_output()),
+                    stream_with_context(stream_command_execution(command, streaming)),
                     content_type="text/plain; charset=utf-8",
                     headers={
                         "Cache-Control": "no-cache",
@@ -120,8 +73,10 @@ def setup_routes(app: Flask):
                     }
                 )
             else:
-                # Non-streaming execution
-                result = execute_command(command)
+                # Non-streaming execution with timeout
+                DEFAULT_TIMEOUT = 10  # seconds for non-streaming commands
+                timeout = params.get("timeout", DEFAULT_TIMEOUT)
+                result = execute_command(command, timeout=timeout)
                 return jsonify(result)
                 
         except Exception as e:

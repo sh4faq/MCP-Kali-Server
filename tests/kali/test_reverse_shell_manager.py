@@ -1174,7 +1174,8 @@ echo "=== End of Payload ==="
             # Call the new send_payload endpoint
             payload_data = {
                 "payload_command": payload_command,
-                "timeout": 15
+                "timeout": 15,
+                "wait_seconds": 0.5  # Minimal wait time for non-blocking test
             }
             
             response = requests.post(
@@ -1195,20 +1196,20 @@ echo "=== End of Payload ==="
             self.assertEqual(result.get("session_id"), session_id)
             self.assertIn("background", result.get("message", "").lower())
             
-            # Critical test: Response should be nearly immediate (< 3 seconds)
-            # Note: We allow up to 3 seconds to account for network latency and Docker overhead
-            self.assertLess(response_time, 3.0, 
+            # Critical test: Response should be nearly immediate (< 2.5 seconds with minimal wait)
+            # Note: We allow up to 2.5 seconds for 1 second wait_seconds + network latency + Docker overhead
+            self.assertLess(response_time, 3, 
                            f"Send payload took {response_time:.2f}s - should be non-blocking!")
             
-            print(f"✅ Send payload returned immediately in {response_time:.2f}s (non-blocking)")
+            print(f"✅ Send payload returned in {response_time:.2f}s (non-blocking with 1s wait)")
             print(f"   Response: {result}")
             
             # Additional verification: The response time should be significantly faster than
             # what a blocking curl command would take (which would be 5+ seconds)
-            if response_time < 2.5:
-                print("✅ Response time is excellent (< 2.5s)")
-            elif response_time < 3.0:
-                print("✅ Response time is acceptable (< 3.0s) - payload send is non-blocking")
+            if response_time < 1.5:
+                print("✅ Response time is excellent (< 1.5s)")
+            elif response_time < 2.5:
+                print("✅ Response time is acceptable (< 2.5s) - payload send is non-blocking")
             else:
                 print("⚠️  Response time is higher than expected but still non-blocking")
             

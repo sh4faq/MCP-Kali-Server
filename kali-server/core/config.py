@@ -13,6 +13,7 @@ API_PORT = int(os.environ.get("API_PORT", 5000))
 DEBUG_MODE = os.environ.get("DEBUG_MODE", "0").lower() in ("1", "true", "yes", "y")
 TEST_MODE = os.environ.get("TEST_MODE", "0").lower() in ("1", "true", "yes", "y")
 COMMAND_TIMEOUT = 300  # 5 minutes default timeout
+BLOCKING_TIMEOUT = int(os.environ.get("BLOCKING_TIMEOUT", 5))  # seconds - if no output in this time, consider it blocking
 
 # Configure logging
 logging.basicConfig(

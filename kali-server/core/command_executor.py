@@ -244,3 +244,93 @@ def execute_command(command: str, on_output: Callable[[str, str], None] = None, 
         return executor.execute_with_streaming(on_output)
     else:
         return executor.execute()
+
+
+def stream_command_execution(command: str, streaming: bool = False):
+    """
+    Execute a command with streaming support and blocking detection.
+    
+    Args:
+        command: The command to execute
+        streaming: Whether streaming was explicitly requested
+        
+    Yields:
+        Server-sent events for streaming response
+    """
+    import queue
+    import threading
+    import time
+    from .tool_config import is_streaming_tool
+    from .config import BLOCKING_TIMEOUT
+    
+    # Check if streaming is requested or auto-detect
+    tool_name = command.split()[0] if command.strip() else ""
+    should_stream = streaming or is_streaming_tool(tool_name)
+    
+    if not should_stream:
+        # Non-streaming execution
+        result = execute_command(command)
+        yield f"data: {{\"type\": \"result\", \"success\": {str(result['success']).lower()}, \"return_code\": {result['return_code']}, \"timed_out\": {str(result.get('timed_out', False)).lower()}}}\n\n"
+        yield f"data: {{\"type\": \"complete\"}}\n\n"
+        return
+    
+    # Streaming execution with blocking detection
+    output_queue = queue.Queue()
+    output_received = threading.Event()
+    
+    def handle_output(source, line):
+        output_received.set()  # Mark that we received output
+        escaped_line = line.replace('"', '\\"')
+        output_queue.put(f'data: {{"type": "output", "source": "{source}", "line": "{escaped_line}"}}\n\n')
+    
+    # Execute command in separate thread
+    result_container = {}
+    command_terminated = threading.Event()
+    
+    def execute_in_thread():
+        try:
+            result = execute_command(command, on_output=handle_output)
+            result_container['result'] = result
+        except Exception as e:
+            result_container['error'] = str(e)
+        finally:
+            output_queue.put("DONE")
+    
+    thread = threading.Thread(target=execute_in_thread)
+    thread.start()
+    
+    start_time = time.time()
+    blocking_detected = False
+    
+    # Yield outputs as they come
+    while True:
+        try:
+            item = output_queue.get(timeout=1)
+            if item == "DONE":
+                break
+            yield item
+            # Reset start time when we receive output
+            start_time = time.time()
+        except queue.Empty:
+            # Check if no output has been received within BLOCKING_TIMEOUT
+            if not output_received.is_set() and (time.time() - start_time) > BLOCKING_TIMEOUT:
+                blocking_detected = True
+                yield f'data: {{"type": "error", "message": "Blocking or server-hanging commands are not allowed via this endpoint. Use the appropriate reverse shell or listener API for such operations."}}\n\n'
+                yield f'data: {{"type": "complete"}}\n\n'
+                command_terminated.set()
+                return  # Exit the generator function completely
+            yield "data: {\"type\": \"heartbeat\"}\n\n"
+            continue
+    
+    if not blocking_detected:
+        # Wait for thread to complete
+        thread.join()
+        
+        # Send final result
+        if 'result' in result_container:
+            result = result_container['result']
+            yield f"data: {{\"type\": \"result\", \"success\": {str(result['success']).lower()}, \"return_code\": {result['return_code']}, \"timed_out\": {str(result.get('timed_out', False)).lower()}}}\n\n"
+        elif 'error' in result_container:
+            yield f"data: {{\"type\": \"error\", \"message\": \"Server error: {result_container['error']}\"}}\n\n"
+        
+        yield f"data: {{\"type\": \"complete\"}}\n\n"
