@@ -1,6 +1,24 @@
 # MCP Kali Server
 
+<!-- Badges -->
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Version: v0.2.1](https://img.shields.io/badge/version-v0.2.1-blue)
+
+
+![MCP Kali Server Architecture](doc/MCP%20Kali%20Server.png)
+
 A comprehensive Model Context Protocol (MCP) server for penetration testing and cybersecurity operations, providing seamless integration between Kali Linux tools and MCP-compatible clients.
+
+
+## 🎥 Demo Video
+
+**Automating Kali Linux with an MCP (Model Context Protocol) — HTB Demo**
+
+In this video, I showcase how my MCP automates a Kali Linux workflow inside WSL2 and assists with solving a Hack The Box challenge — from enumeration to exploitation to auto-generated documentation.
+
+[Watch the demo on YouTube](https://youtu.be/Wej1z-vfxz0)
+
+---
 
 ## 🚀 Overview
 
@@ -111,51 +129,10 @@ mcp-server/
 - **Background Processing**: Non-blocking operations for long-running tasks
 - **Resource Management**: Efficient memory and CPU usage
 
+
 ## 🛠️ Installation
 
-### Prerequisites
-- Kali Linux (required for the Kali server)
-- Python 3.8+
-- Docker (for test mode on Kali Linux)
-- Required penetration testing tools (nmap, gobuster, etc.)
-
-### Quick Start
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/TriV3/MCP-Kali-Server.git
-   cd MCP-Kali-Server
-   ```
-
-2. **Install Python dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Set up Docker for testing** (on Kali Linux only)
-   ```bash
-   # Run these commands on your Kali Linux system
-   sudo apt update && sudo apt install docker.io
-   
-   # Start Docker service
-   sudo systemctl start docker
-   sudo systemctl enable docker
-   
-   # Add user to docker group (then logout/login)
-   sudo usermod -aG docker $USER
-   ```
-
-4. **Start the Kali Server** (on Kali Linux)
-   ```bash
-   cd kali-server
-   python kali_server.py --test
-   ```
-
-5. **Start the MCP Server** (can be on any system)
-   ```bash
-   cd mcp-server
-   python mcp_server.py
-   ```
+See [install.md](./install.md) for detailed installation instructions.
 
 ## ⚠️ Security Warning
 
@@ -180,106 +157,10 @@ sudo python kali_server.py
 
 **For production environments**: Please see `TODO.md` for planned security enhancements including granular privilege management and access controls.
 
+
 ## 📖 Usage
 
-### Starting the Kali Server
-
-The Kali server supports several command-line options:
-
-```bash
-# Basic usage
-python kali_server.py
-
-# Enable debug mode
-python kali_server.py --debug
-
-# Enable test mode (automatically manages Docker container)
-python kali_server.py --test
-
-# Custom port
-python kali_server.py --port 8080
-
-# Combined options
-python kali_server.py --test --debug --port 8080
-```
-
-### Working Directory
-
-The Kali server automatically creates and uses a `tmp/` directory as its working directory to keep the project clean:
-
-- **Automatic Creation**: The `tmp/` directory is created automatically on startup if it doesn't exist
-- **Permission Handling**: If permission is denied in the project directory, falls back to `~/.mcp-kali-server/tmp/`
-- **Default Location**: All file operations (nmap output files, downloads, etc.) use this directory by default
-- **Git Ignored**: The entire `tmp/` directory is ignored by git, keeping the repository clean
-- **Absolute Paths**: You can still use absolute paths to save files anywhere on the system
-
-**Directory Priority:**
-1. `<project>/tmp/` (preferred)
-2. `~/.mcp-kali-server/tmp/` (fallback if permissions denied)
-
-**Examples:**
-```bash
-# These commands save files in the working directory:
-nmap -oN scan_results.txt 192.168.1.1
-wget http://example.com/file.txt
-
-# These commands use absolute paths:
-nmap -oN /home/user/scans/results.txt 192.168.1.1
-```
-
-**Benefits:**
-- Keeps the git repository clean from operational artifacts
-- Provides a dedicated space for scan results and temporary files
-- Handles permission issues gracefully with automatic fallback
-- Makes cleanup easier after testing sessions
-
-#### Test Mode Features
-
-When using the `--test` option, the server will:
-- Automatically check if Docker is available
-- Build the test Docker image if needed
-- Start a test container with SSH and testing services
-- Provide a test environment with:
-  - SSH access on `localhost:2222` (testuser:testpass)
-  - Reverse shell listeners on ports 4444, 4445
-  - Sample test files for file transfer operations
-- Automatically stop and clean up the Docker container when the server is shut down (Ctrl+C)
-
-This is perfect for development, testing, and demonstration purposes without needing a separate Kali Linux environment.
-
-### MCP Client Integration
-
-The server provides MCP tools that can be used by any MCP-compatible client:
-
-```python
-# Example: Running an Nmap scan
-result = await mcp_client.call_tool("mcp_kali_mcp_nmap_scan", {
-    "target": "192.168.1.1",
-    "scan_type": "-sV",
-    "ports": "22,80,443"
-})
-```
-
-### Direct API Usage
-
-You can also interact directly with the Kali Server REST API:
-
-```bash
-# Start SSH session
-curl -X POST http://localhost:5000/api/ssh/session/start \
-  -H "Content-Type: application/json" \
-  -d '{
-    "target": "192.168.1.100",
-    "username": "user",
-    "password": "password",
-    "port": 22
-  }'
-
-# Execute command
-curl -X POST http://localhost:5000/api/ssh/session/test_session/command \
-  -H "Content-Type: application/json" \
-  -d '{"command": "ls -la"}'
-```
+See [usage.md](./usage.md) for detailed usage instructions and examples.
 
 ## 🧪 Testing
 
