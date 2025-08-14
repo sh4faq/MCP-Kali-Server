@@ -134,6 +134,18 @@ mcp-server/
 
 See [install.md](./install.md) for detailed installation instructions.
 
+### Dependency Split
+This project now separates Python dependencies for the two runtime components:
+- `requirements.kali.txt` – Only what the Kali API server Python code needs (Flask, etc.)
+- `requirements.mcp.txt` – Dependencies for the MCP server client interface (`requests`, FastMCP, test libs)
+- `requirements.txt` – Informational file describing the split; contains no direct packages now.
+
+Install on each machine as appropriate:
+```
+pip install -r requirements.kali.txt   # On Kali host running kali-server/
+pip install -r requirements.mcp.txt    # On host running mcp-server/
+```
+
 ## ⚠️ Security Warning
 
 **IMPORTANT**: Be extremely cautious when running the Kali server with `sudo` privileges:
@@ -191,37 +203,6 @@ python -m pytest test_ssh_manager.py -v
 Tests use Docker containers for consistent and isolated testing environments. The configuration is automatically set up in:
 - `tests/kali/test_config.py` - Main test configuration (Docker-based)
 - `tests/docker/test_config_docker.py` - Docker-specific test configuration
-
-## 🔧 Configuration
-
-### Kali Server Configuration
-The server can be configured through environment variables or command-line arguments:
-
-```python
-# Default configuration
-KALI_SERVER_CONFIG = {
-    "host": "localhost",
-    "port": 5000,
-    "timeout": 30,
-    "max_sessions": 10
-}
-```
-
-### SSH Targets
-Configure your SSH targets for testing in the configuration files:
-
-```python
-# Docker-based SSH targets (automatically configured)
-SSH_TARGETS = {
-    "default_target": {
-        "host": "localhost",
-        "port": 2222,
-        "username": "testuser",
-        "password": "testpass",
-        "description": "Docker container for SSH tests"
-    }
-}
-```
 
 ## 📋 Available MCP Tools
 

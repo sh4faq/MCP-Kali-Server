@@ -1,0 +1,18 @@
+#############################################
+# Python dependencies (Kali API Server)
+#############################################
+
+# Runtime
+Flask==2.3.3
+
+# Dev / Test (optional)
+pytest==7.4.2
+pytest-timeout==2.1.0
+
+#############################################
+# Notes
+#############################################
+# System tools (install via apt):
+#   nmap gobuster dirb nikto hydra sqlmap wpscan john enum4linux metasploit-framework sshpass docker.io
+# These are OS-level and not listed in pip requirements.
+# Only install pytest packages if you run the test suite on the Kali host.

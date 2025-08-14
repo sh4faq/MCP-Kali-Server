@@ -1,13 +1,16 @@
-# Core web framework
-Flask==2.3.3
+"""
+Unified dependency file (informational).
 
-# HTTP requests
-requests==2.31.0
+The project has two Python components that may run on different machines:
+1. Kali API Server (kali-server/) -> use requirements.kali.txt
+2. MCP Server (mcp-server/)       -> use requirements.mcp.txt
 
-# Testing framework
-pytest==7.4.2
-pytest-timeout==2.1.0
+Install separately:
+	pip install -r requirements.kali.txt   # On the Kali machine
+	pip install -r requirements.mcp.txt    # On the MCP client machine
 
-# Type hints (built-in modules don't need installation but typing is used)
-# os, sys, time, subprocess, logging, argparse, signal, json, base64, hashlib
-# uuid, threading, queue, pty, select, traceback are all built-in modules
+System packages (install via apt on Kali):
+	nmap gobuster dirb nikto hydra sqlmap wpscan john enum4linux metasploit-framework sshpass docker.io
+
+This file is kept to document the split. It intentionally lists no direct packages.
+"""

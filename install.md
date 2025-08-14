@@ -35,7 +35,16 @@ Replace `/absolute/path/to/python` with the path to your Python executable, and 
    cd MCP-Kali-Server
    ```
 
-2. **Install Python dependencies**
+2. **Install Python dependencies (split environments)**
+   On the Kali machine (API server):
+   ```bash
+   pip install -r requirements.kali.txt
+   ```
+   On the machine hosting the MCP server (can be Kali or another OS):
+   ```bash
+   pip install -r requirements.mcp.txt
+   ```
+   Or if you still want the legacy single install (not recommended now):
    ```bash
    pip install -r requirements.txt
    ```
