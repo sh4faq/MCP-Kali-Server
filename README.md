@@ -134,6 +134,20 @@ mcp-server/
 
 See [install.md](./install.md) for detailed installation instructions.
 
+### WSL Network Configuration
+
+If you're running Kali Linux in WSL 2, proper network configuration is **critical** for the MCP server to function. See our comprehensive guide:
+
+📖 **[WSL Network Configuration Guide](./doc/WSL_NETWORK_CONFIGURATION.md)**
+
+This guide covers:
+- Essential WSL configuration (`wsl.conf`)
+- DNS resolution setup for Kali tools
+- **Critical**: Understanding WSL 2 localhost behavior (Windows → Kali communication)
+- Network testing and troubleshooting
+
+⚠️ **Important**: The MCP client on Windows **must** be able to access the Kali server via `localhost`. Review this guide before running the server.
+
 ### Dependency Split
 This project now separates Python dependencies for the two runtime components:
 - `requirements.kali.txt` – Only what the Kali API server Python code needs (Flask, etc.)

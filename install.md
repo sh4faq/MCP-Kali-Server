@@ -44,10 +44,6 @@ Replace `/absolute/path/to/python` with the path to your Python executable, and 
    ```bash
    pip install -r requirements.mcp.txt
    ```
-   Or if you still want the legacy single install (not recommended now):
-   ```bash
-   pip install -r requirements.txt
-   ```
 
 3. **Set up Docker for testing** (on Kali Linux only)
    ```bash
