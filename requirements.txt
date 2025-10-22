@@ -1,0 +1,16 @@
+"""
+Unified dependency file (informational).
+
+The project has two Python components that may run on different machines:
+1. Kali API Server (kali-server/) -> use requirements.kali.txt
+2. MCP Server (mcp-server/)       -> use requirements.mcp.txt
+
+Install separately:
+	pip install -r requirements.kali.txt   # On the Kali machine
+	pip install -r requirements.mcp.txt    # On the MCP client machine
+
+System packages (install via apt on Kali):
+	nmap gobuster dirb nikto hydra sqlmap wpscan john enum4linux metasploit-framework sshpass docker.io
+
+This file is kept to document the split. It intentionally lists no direct packages.
+"""
